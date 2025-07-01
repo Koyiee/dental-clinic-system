@@ -3,7 +3,7 @@
   <nav>
     <a href="/" class="logo-link"><img src="../Images/ATDC_Logo.png" alt="Dental Clinic Logo"/></a>
     <div class="nav-links" :style="{ right: isMenuOpen ? '0' : '-250px' }">
-      <i class="fas fa-times close-btn" @click="hideMenu"></i>
+      <i class="fa fa-times close-btn" @click="hideMenu"></i>
       <ul>
         <li><a href="/">Home</a></li>
         <li><a href="/about">About Us</a></li>
@@ -16,7 +16,7 @@
         </li>
       </ul>
     </div>
-    <i class="fas fa-bars menu-btn" @click="showMenu"></i>
+    <i class="fa fa-bars menu-btn" @click="showMenu"></i>
   </nav>
 
   <a href="#top" class="gtp" :class="{ 'show': showGoToTop }"><img src="../Images/Go to top.png" alt="Go to top"></a>
