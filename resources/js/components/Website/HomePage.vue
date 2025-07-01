@@ -1,7 +1,7 @@
 <template>
   <!-- Responsive Navbar -->
   <nav>
-    <a href="/" class="logo-link"><img src="../Images/ATDC_logo.png" alt="Dental Clinic Logo"/></a>
+    <a href="/" class="logo-link"><img src="../Images/ATDC_Logo.png" alt="Dental Clinic Logo"/></a>
     <div class="nav-links" :style="{ right: isMenuOpen ? '0' : '-250px' }">
       <i class="fas fa-times close-btn" @click="hideMenu"></i>
       <ul>
