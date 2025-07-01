@@ -95,8 +95,9 @@
         </li>
       </ul>
     </li>
+    <a href="/logout">
       <li>
-        <div class="profile-details" @click="confirmLogout">
+        <div class="profile-details">
           <div class="profile-content">
             <img src="../Images/profile_1.jpg" alt="profile">
           </div>
@@ -107,6 +108,7 @@
           <i class="bx bx-log-out"></i>
         </div>
       </li>
+    </a>
   </ul>
 </div>
 <section class="home-section">
@@ -1169,7 +1171,6 @@
 
 <script>
 import axios from 'axios';
-import Swal from 'sweetalert2';
 
 export default {
   name: "HRPatientBillings",
@@ -1246,7 +1247,6 @@ export default {
       referenceIdErrorMessage: '',
       showGenericErrorModal: false,
       genericErrorMessage: '',
-      refreshInterval: null, // ADD THIS LINE
     };
   },
   computed: {
@@ -1703,7 +1703,6 @@ insuranceBillings() {
     this.fetchBillings();
     this.fetchPaymentMethods();
     this.fetchPatientsWithBalances();
-    this.startAutoRefresh(); // ADD THIS LINE
     const arrows = document.querySelectorAll(".arrow");
     arrows.forEach((arrow) => {
       arrow.addEventListener("click", (e) => {
@@ -1719,26 +1718,7 @@ insuranceBillings() {
       sidebar.classList.toggle("close");
     });
   },
-  beforeUnmount() {
-  this.stopAutoRefresh();
-},
   methods: {
-    async confirmLogout() {
-  const result = await Swal.fire({
-    title: 'Are you sure?',
-    text: 'Do you really want to log out?',
-    icon: 'warning',
-    showCancelButton: true,
-    confirmButtonColor: '#06693A',
-    cancelButtonColor: '#d33',
-    confirmButtonText: 'Yes, log out',
-    cancelButtonText: 'Cancel'
-  });
-
-  if (result.isConfirmed) {
-    window.location.href = '/logout';
-  }
-},
     getCombinedServiceNames(services) {
       if (!services || services.length === 0) return 'No services';
       
@@ -3120,10 +3100,6 @@ async updateBilling() {
     this.allBillings = this.allBillings.filter(b => String(b.BillingID) !== `${baseBillingID}${suffix}`);
     this.allBillings.push(...updatedBillings);
 
-    // ADD THESE LINES:
-await this.fetchBillings();
-this.activeTab = 'unpaid';
-
     this.showModal = false;
     this.$emit('billing-updated');
 
@@ -3323,8 +3299,6 @@ this.activeTab = 'unpaid';
 
     this.showSuccessModal = true;
     this.closeAddPaymentModal();
-    await this.fetchBillings();
-this.activeTab = 'unpaid';
     await this.fetchPatientsWithBalances();
   } catch (error) {
     console.error('Error adding payment:', error);
@@ -3359,9 +3333,9 @@ this.activeTab = 'unpaid';
       }
     },
     closeSuccessModal() {
-  this.showSuccessModal = false;
-  this.activeTab = 'unpaid'; // ADD THIS LINE
-},
+      this.showSuccessModal = false;
+      this.fetchBillings();
+    },
     closeReferenceIdErrorModal() {
       this.showReferenceIdErrorModal = false;
       this.referenceIdErrorMessage = '';
@@ -3374,24 +3348,6 @@ this.activeTab = 'unpaid';
       this.showGenericErrorModal = false;
       this.genericErrorMessage = '';
     },
-    startAutoRefresh() {
-  this.refreshInterval = setInterval(async () => {
-    await this.fetchBillings();
-    await this.fetchPatientsWithBalances();
-  }, 30000);
-},
-
-stopAutoRefresh() {
-  if (this.refreshInterval) {
-    clearInterval(this.refreshInterval);
-    this.refreshInterval = null;
-  }
-},
-
-async manualRefresh() {
-  await this.fetchBillings();
-  await this.fetchPatientsWithBalances();
-},
     handleServiceCostChange(service) {
       if (service.Cost < 0) {
         service.Cost = 0;
@@ -3695,7 +3651,6 @@ hr {
   background-color: #FFFFFF;
   padding: 6px 0;
   transition: all 0.5s ease;
-  cursor: pointer;
 }
 
 .sidebar.close .profile-details {

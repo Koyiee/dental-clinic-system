@@ -140,7 +140,7 @@
           <h3>Patient Billings</h3>
           <div class="breadcrumbs">
             <a class="none" href=""><p>Home / </p></a>
-            <a class="current" href="/ownerpatientbillings"><p>  Patient Billings</p></a>
+            <a class="current" href="/hrpatientbillings"><p>  Patient Billings</p></a>
           </div>
       </div>
     </div>
@@ -485,9 +485,9 @@
     <div class="billing-container" v-show="activeTab === 'unpaid'">
       <div class="billing">
         <h3>UNPAID BILLS</h3>
-        <!-- <button class="add-payment-btn" @click="openAddPaymentModal">
+        <button class="add-payment-btn" @click="openAddPaymentModal">
           <i class='bx bx-plus'></i> Add Payment
-        </button> -->
+        </button>
       </div>
       <div class="table-wrapper">
         <!-- Desktop Table -->
@@ -511,7 +511,7 @@
               <td style="padding-left: 25px;">{{ billing.PatientName }}</td>
               <td>{{ formatDateTime(billing.AppointmentDateTime) }}</td>
               <td>{{ billing.Procedure }}</td>
-              <td>{{ formatNumber(billing.Amount) }}</td>
+              <td>{{ formatNumber(billing.Balance) }}</td>
               <td class="actions-cell" @click.stop>
                 <button 
                   class="edit-button" 
@@ -556,7 +556,7 @@
               </div>
               <div class="card-row">
                 <span class="card-label">Amount:</span>
-                <span>{{ formatNumber(billing.Amount) }}</span>
+                <span>{{ formatNumber(billing.Balance) }}</span>
               </div>
             </div>
           </div>
@@ -628,27 +628,23 @@
                     <div class="service-name">{{ service.ServiceName }}</div>
                   </div>
                   <div class="service-controls">
-                    <div class="form-row">
-                      <div class="form-group">
-                        <label>Price</label>
-                        <div class="input-with-icon">
-                          <span class="currency-symbol">₱</span>
-                          <input
-                            :value="getServicePrice(service)"
-                            @input="setServicePrice(service, $event.target.value)"
-                            type="number"
-                            step="1"
-                            min="0"
-                            placeholder="Enter cost"
-                            :disabled="isViewOnly || service.PaymentStatus === 'Paid'"
-                            @change="updateTotalAmount"
-                          />
-                        </div>
-                        <div v-if="isInsuranceMethod(service) && !hasCostChanged(service)" class="cost-change-warning">
-                          <span class="warning-text">Price must be changed for insurance payment.</span>
-                        </div>
-                      </div>
-                      <div class="form-group">
+                    <div class="form-group">
+  <label>Price</label>
+  <div class="input-with-icon">
+    <span class="currency-symbol">₱</span>
+    <input
+      v-model.number="selectedBilling.TotalAmount"
+      type="number"
+      min="0"
+      step="0.01"
+      @input="setServicePrice(service, $event.target.value)"
+      :disabled="isViewOnly || service.PaymentStatus === 'Paid'"
+    />
+  </div>
+  <div v-if="isInsuranceMethod(service) && !hasCostChanged(service)" class="cost-change-warning">
+    <span class="warning-text">Price must be changed for insurance payment.</span>
+  </div>
+                      <!-- <div class="form-group">
                         <label>Discount</label>
                         <div class="input-with-icon">
                           <span class="currency-symbol">₱</span>
@@ -662,7 +658,8 @@
                             @input="updateTotalAmount"
                           />
                         </div>
-                      </div>
+                      </div> -->
+                      <br>
                     </div>
                     <div class="form-row">
                       <div class="form-group">
@@ -785,7 +782,7 @@
                       <div class="input-with-icon">
                         <span class="currency-symbol">₱</span>
                         <input 
-                          :value="formatNumber(service.Cost)" 
+                          :value="formatNumber(calculatedTotalAmount)"  
                           readonly 
                           class="readonly-field" 
                         />
@@ -838,7 +835,7 @@
                   </div>
                 </div>
                 <div class="payment-summary-total">
-                  <div class="form-row">
+                  <!-- <div class="form-row">
                     <div class="form-group">
                       <label>Total Amount</label>
                       <div class="input-with-icon">
@@ -861,7 +858,7 @@
                         />
                       </div>
                     </div>
-                  </div>
+                  </div> -->
                 </div>
               </div>
               <div v-else class="no-services">No payment details available</div>
@@ -872,7 +869,6 @@
                   <label>Remarks (Optional)</label>
                   <textarea
                     v-model="selectedBilling.Remarks"
-                    placeholder="e.g., Price Approved by Dr."
                     rows="3"
                     readonly
                     class="readonly-field"
@@ -986,97 +982,97 @@
 </Teleport>
 
     <!-- Paid Section -->
-    <div class="billing-container" v-show="activeTab === 'paid'">
-      <div class="billing">
-        <h3>PAID BILLS</h3>
-      </div>
-      <div class="table-wrapper">
-        <!-- Desktop Table -->
-        <table class="billing-table desktop-table paid-table">
-          <thead>
-            <tr>
-              <th style="padding-left: 25px;">Patient Name</th>
-              <th>Appointment Date/Time</th>
-              <th>Procedure</th>
-              <th>Amount Paid</th>
-              <th>Remaining Balance</th>
-              <th class="actions-header">Actions</th>
-            </tr>
-          </thead>
-          <tbody class="container-billing">
-            <tr 
-              v-for="billing in previousBillings" 
-              :key="billing.BillingID"
+<div class="billing-container" v-show="activeTab === 'paid'">
+  <div class="billing">
+    <h3>PAID BILLS</h3>
+  </div>
+  <div class="table-wrapper">
+    <!-- Desktop Table -->
+    <table class="billing-table desktop-table paid-table">
+      <thead>
+        <tr>
+          <th style="padding-left: 25px;">Patient Name</th>
+          <th>Appointment Date/Time</th>
+          <th>Procedure</th>
+          <th>Amount Paid</th>
+          <th>Remaining Balance</th>
+          <th class="actions-header">Actions</th>
+        </tr>
+      </thead>
+      <tbody class="container-billing">
+        <tr 
+          v-for="billing in previousBillings" 
+          :key="billing.BillingID"
+          @click="openViewModal(billing)"
+          class="billing-row"
+        >
+          <td style="padding-left: 25px;">{{ billing.PatientName }}</td>
+          <td>
+            {{ billing.IsStandalonePayment && !billing.AppointmentDateTime ? 'Payment without Appointment' : (billing.AppointmentDateTime ? formatDateTime(billing.AppointmentDateTime) : 'N/A') }}
+          </td>
+          <td>{{ billing.Procedure }}</td>
+          <td>{{ formatNumber(billing.AmountPaid) }}</td>
+          <td>{{ formatNumber(billing.Balance) }}</td>
+          <td class="actions-cell" @click.stop>
+            <button 
+              class="view-button" 
               @click="openViewModal(billing)"
-              class="billing-row"
             >
-              <td style="padding-left: 25px;">{{ billing.PatientName }}</td>
-              <td>
-                {{ billing.IsStandalonePayment && !billing.AppointmentDateTime ? 'Payment without Appointment' : (billing.AppointmentDateTime ? formatDateTime(billing.AppointmentDateTime) : 'N/A') }}
-              </td>
-              <td>{{ billing.Procedure }}</td>
-              <td>{{ formatNumber(billing.AmountPaid) }}</td>
-              <td>{{ formatNumber(billing.Balance) }}</td>
-              <td class="actions-cell" @click.stop>
-                <button 
-                  class="view-button" 
-                  @click="openViewModal(billing)"
-                >
-                  <i class='bx bx-show'></i> View
-                </button>
-              </td>
-            </tr>
-            <tr v-if="previousBillings.length === 0">
-              <td colspan="6" class="no-data">No Paid Bills...</td>
-            </tr>
-          </tbody>
-        </table>
-        <!-- Mobile Cards -->
-        <div class="mobile-cards">
-          <div 
-            v-for="billing in previousBillings" 
-            :key="billing.BillingID"
-            class="billing-card"
-            @click="openViewModal(billing)"
-          >
-            <div class="card-header">
-              <h4>{{ billing.Procedure }}</h4>
-              <div class="card-actions" @click.stop>
-                <button 
-                  class="view-button-mobile" 
-                  @click="openViewModal(billing)"
-                >
-                  <i class='bx bx-show'></i> View
-                </button>
-              </div>
-            </div>
-            <div class="card-content">
-              <div class="card-row">
-                <span class="card-label">Patient Name:</span>
-                <span>{{ billing.PatientName }}</span>
-              </div>
-              <div class="card-row">
-                <span class="card-label">Appointment Date/Time:</span>
-                <span>
-                  {{ billing.IsStandalonePayment && !billing.AppointmentDateTime ? 'Payment without Appointment' : (billing.AppointmentDateTime ? formatDateTime(billing.AppointmentDateTime) : 'N/A') }}
-                </span>
-              </div>
-              <div class="card-row">
-                <span class="card-label">Amount Paid:</span>
-                <span>{{ formatNumber(billing.AmountPaid) }}</span>
-              </div>
-              <div class="card-row">
-                <span class="card-label">Remaining Balance:</span>
-                <span>{{ formatNumber(billing.Balance) }}</span>
-              </div>
-            </div>
+              <i class='bx bx-show'></i> View
+            </button>
+          </td>
+        </tr>
+        <tr v-if="previousBillings.length === 0">
+          <td colspan="6" class="no-data">No Paid Bills...</td>
+        </tr>
+      </tbody>
+    </table>
+    <!-- Mobile Cards -->
+    <div class="mobile-cards">
+      <div 
+        v-for="billing in previousBillings" 
+        :key="billing.BillingID"
+        class="billing-card"
+        @click="openViewModal(billing)"
+      >
+        <div class="card-header">
+          <h4>{{ billing.Procedure }}</h4>
+          <div class="card-actions" @click.stop>
+            <button 
+              class="view-button-mobile" 
+              @click="openViewModal(billing)"
+            >
+              <i class='bx bx-show'></i> View
+            </button>
           </div>
-          <div v-if="previousBillings.length === 0" class="no-data-mobile">
-            No Paid Bills
+        </div>
+        <div class="card-content">
+          <div class="card-row">
+            <span class="card-label">Patient Name:</span>
+            <span>{{ billing.PatientName }}</span>
+          </div>
+          <div class="card-row">
+            <span class="card-label">Appointment Date/Time:</span>
+            <span>
+              {{ billing.IsStandalonePayment && !billing.AppointmentDateTime ? 'Payment without Appointment' : (billing.AppointmentDateTime ? formatDateTime(billing.AppointmentDateTime) : 'N/A') }}
+            </span>
+          </div>
+          <div class="card-row">
+            <span class="card-label">Price:</span>
+            <span>{{ formatNumber(billing.TotalAmount) }}</span>
+          </div>
+          <div class="card-row">
+            <span class="card-label">Remaining Balance:</span>
+            <span>{{ formatNumber(billing.Balance) }}</span>
           </div>
         </div>
       </div>
+      <div v-if="previousBillings.length === 0" class="no-data-mobile">
+        No Paid Bills
+      </div>
     </div>
+  </div>
+</div>
 
     <!-- Insurance Payout Section -->
 <div class="billing-container" v-show="activeTab === 'insurance'">
@@ -1199,7 +1195,7 @@ import axios from 'axios';
 import Swal from 'sweetalert2';
 
 export default {
-  name: "OwnerPatientBillings",
+  name: "HRPatientBillings",
   props: {
     firstName: { type: String, required: true },
     lastName: { type: String, required: true },
@@ -1273,9 +1269,14 @@ export default {
       referenceIdErrorMessage: '',
       showGenericErrorModal: false,
       genericErrorMessage: '',
+      refreshInterval: null, // ADD THIS LINE
     };
   },
   computed: {
+    calculatedTotalAmount() {
+      // Calculate total amount as RemainingBalance + AmountPaid
+      return (this.selectedBilling.Balance || 0) + (this.selectedBilling.AmountPaid || 0);
+    },
     fullName() {
       return `${this.firstName} ${this.lastName}`;
     },
@@ -1329,11 +1330,6 @@ previousBillings() {
 
     const isStandalonePayment = billing.IsStandalonePayment || false;
     const totalPaidForBilling = Number(billing.TotalPaid) || 0;
-    const totalAmountForBilling = Number(billing.TotalAmount) || 0;
-    const totalDiscountForBilling = Number(billing.Discount) || 0;
-    const totalBalanceForBilling = Number(billing.Balance) || 0;
-
-    // Include billings with any payment (TotalPaid > 0)
     if (totalPaidForBilling <= 0) return;
 
     const baseBillingID = billingIdStr.replace('_nonInsurance', '');
@@ -1343,9 +1339,9 @@ previousBillings() {
         BillingID: baseBillingID,
         services: [],
         TotalPaid: 0,
-        TotalAmount: 0,
-        Discount: 0,
-        Balance: 0,
+        TotalAmount: Number(billing.TotalAmount) || 0,
+        Discount: Number(billing.Discount) || 0,
+        Balance: Number(billing.Balance) || 0,
         TableCategory: 'paid',
       });
     }
@@ -1353,12 +1349,6 @@ previousBillings() {
     const existingBilling = paidBillingsMap.get(baseBillingID);
 
     billing.services.forEach((service, index) => {
-      const amountPaid = Number(service.AmountPaid) || 0;
-      const serviceCost = Number(service.Cost) || 0;
-      const serviceDiscount = Number(service.Discount) || 0;
-      const serviceBalance = Math.max(0, serviceCost - amountPaid - serviceDiscount);
-
-      // Skip services that are paid via an insurance method
       const isInsuranceService = this.insuranceProviders.some(
         p => p.MethodName.toLowerCase() === (service.PaymentMethod || 'N/A').toLowerCase()
       );
@@ -1368,21 +1358,25 @@ previousBillings() {
       if (seenServiceKeys.has(serviceKey)) return;
       seenServiceKeys.add(serviceKey);
 
+      const serviceCost = Number(service.Cost) || 0;
+      const serviceAmountPaid = Number(service.AmountPaid) || 0;
+      const serviceDiscount = Number(service.Discount) || 0;
+      const serviceBalance = Number(service.Balance) || Math.max(0, serviceCost - serviceAmountPaid - serviceDiscount);
+
       existingBilling.services.push({
         ...service,
-        AmountPaid: amountPaid,
+        AmountPaid: serviceAmountPaid,
         PaymentMethod: service.PaymentMethod || 'N/A',
         ReferenceID: service.ReferenceID || null,
         Balance: serviceBalance,
         Change: Number(service.Change) || 0,
       });
-      existingBilling.TotalPaid += amountPaid;
-      existingBilling.TotalAmount += serviceCost;
+
+      existingBilling.TotalPaid += serviceAmountPaid;
       existingBilling.Discount += serviceDiscount;
-      existingBilling.Balance += serviceBalance;
+      existingBilling.Balance = Number(billing.Balance) || existingBilling.Balance;
     });
 
-    // If no services were added to this billing, remove it from the map
     if (existingBilling.services.length === 0) {
       paidBillingsMap.delete(baseBillingID);
     } else {
@@ -1434,17 +1428,6 @@ insuranceBillings() {
                                       (service.AmountPaid || 0) < (service.UpdatedPrice || service.Cost);
         const isFullyPaidNonInsurance = (service.AmountPaid || 0) >= (service.UpdatedPrice || service.Cost) && 
                                         !this.insuranceProviders.some(p => p.MethodName.toLowerCase() === paymentMethod);
-
-        console.log(`[insuranceBillings] Filtering Service in Billing ${billing.BillingID}:`, {
-          ServiceName: service.ServiceName,
-          PaymentMethod: paymentMethod,
-          IsExplicitInsurance: isExplicitInsurance,
-          IsPotentialInsurance: isPotentialInsurance,
-          IsFullyPaidNonInsurance: isFullyPaidNonInsurance,
-          AmountPaid: service.AmountPaid,
-          Cost: service.Cost,
-          IncludedInInsurance: (isExplicitInsurance || isPotentialInsurance) && !isFullyPaidNonInsurance
-        });
 
         return (isExplicitInsurance || isPotentialInsurance) && !isFullyPaidNonInsurance;
       });
@@ -1645,11 +1628,6 @@ insuranceBillings() {
         });
       }
 
-      console.log('Filtered billings:', billings.map(b => ({
-        BillingID: b.BillingID,
-        Services: b.services.map(s => `${s.ServiceName} (${s.PaymentMethod})`)
-      }))); // Log filtered billings
-
       return billings;
     },
 
@@ -1707,74 +1685,40 @@ insuranceBillings() {
     },
     getAvailablePaymentMethods() {
       return (service, serviceIndex) => {
-        // If not in the unpaid tab or the billing is paid/view-only, return all payment methods
-        if (this.activeTab !== 'unpaid' || this.isViewOnly || this.isInitiallyPaid) {
-          return this.paymentMethods;
-        }
-
-        // Get the payment methods of other services
-        const otherServices = this.selectedBilling.services.filter((_, index) => index !== serviceIndex);
-        const selectedMethodTypes = new Set(
-          otherServices
-            .filter(s => s.PaymentMethod && s.PaymentMethod !== 'N/A')
-            .map(s => {
-              const method = this.paymentMethods.find(m => m.MethodName === s.PaymentMethod);
-              return method ? method.MethodType : null;
-            })
-            .filter(type => type === 'E-Wallet' || type === 'Bank Payment')
-        );
-
-        // If no E-Wallet or Bank Payment methods are selected, return all payment methods
-        if (selectedMethodTypes.size === 0) {
-          return this.paymentMethods;
-        }
-
-        // If an E-Wallet or Bank Payment method is selected, filter the payment methods
-        const selectedMethodType = Array.from(selectedMethodTypes)[0]; // Take the first MethodType (E-Wallet or Bank Payment)
-        const selectedMethodNames = otherServices
-          .filter(s => {
-            const method = this.paymentMethods.find(m => m.MethodName === s.PaymentMethod);
-            return method && method.MethodType === selectedMethodType;
-          })
-          .map(s => s.PaymentMethod);
-
-        return this.paymentMethods.filter(method => {
-          // Always include Cash and Insurance methods
-          if (method.MethodType === 'Cash' || method.MethodType === 'Insurance') {
-            return true;
-          }
-          // Include the specific E-Wallet or Bank Payment method already selected
-          if (method.MethodType === selectedMethodType && selectedMethodNames.includes(method.MethodName)) {
-            return true;
-          }
-          return false;
-        });
+        // Return all payment methods without any restrictions
+        return this.paymentMethods;
       };
     },
     shouldShowSharedReferenceInput() {
-    if (!this.selectedBilling.services || this.selectedBilling.services.length === 0) return false;
-    
-    // Get the payment method of the first service
-    const firstPaymentMethod = this.selectedBilling.services[0].PaymentMethod;
-    
-    // Check if first payment method is valid (not empty or 'N/A')
-    if (!firstPaymentMethod || firstPaymentMethod === 'N/A') return false;
-    
-    // Check if all services have the same payment method as the first one
-    return this.selectedBilling.services.every(service => 
-      service.PaymentMethod === firstPaymentMethod && service.PaymentMethod !== 'N/A'
-    );
-  },
+  if (!this.selectedBilling.services || this.selectedBilling.services.length === 0) return false;
+  
+  // Get the payment method of the first service
+  const firstPaymentMethod = this.selectedBilling.services[0].PaymentMethod;
+  
+  // Check if first payment method is valid (not empty or 'N/A')
+  if (!firstPaymentMethod || firstPaymentMethod === 'N/A') return false;
+  
+  // Check if the payment method is Cash, Medicard, or Maxicare
+  if (['Cash', 'Medicard', 'Maxicare'].includes(firstPaymentMethod)) return false;
+  
+  // Check if all services have the same payment method as the first one
+  return this.selectedBilling.services.every(service => 
+    service.PaymentMethod === firstPaymentMethod && service.PaymentMethod !== 'N/A'
+  );
+},
 
   shouldShowIndividualReferenceInput() {
-    return (service) => {
-      if (this.shouldShowSharedReferenceInput) return false; // Hide individual fields if shared field is shown
-      const method = this.paymentMethods.find(m => m.MethodName === service.PaymentMethod);
-      if (!method) return false;
-      const methodType = method.MethodType;
-      return methodType === 'E-Wallet' || methodType === 'Bank Payment';
-    };
-  },
+  return (service) => {
+    if (this.shouldShowSharedReferenceInput) return false; // Hide individual fields if shared field is shown
+    const method = this.paymentMethods.find(m => m.MethodName === service.PaymentMethod);
+    if (!method) return false;
+    const methodName = method.MethodName;
+    // Explicitly exclude Cash, Medicard, and Maxicare
+    if (['Cash', 'Medicard', 'Maxicare'].includes(methodName)) return false;
+    const methodType = method.MethodType;
+    return methodType === 'E-Wallet' || methodType === 'Bank Payment';
+  };
+},
     
 
   },
@@ -1782,6 +1726,7 @@ insuranceBillings() {
     this.fetchBillings();
     this.fetchPaymentMethods();
     this.fetchPatientsWithBalances();
+    this.startAutoRefresh(); // ADD THIS LINE
     const arrows = document.querySelectorAll(".arrow");
     arrows.forEach((arrow) => {
       arrow.addEventListener("click", (e) => {
@@ -1797,58 +1742,80 @@ insuranceBillings() {
       sidebar.classList.toggle("close");
     });
   },
+  beforeUnmount() {
+  this.stopAutoRefresh();
+},
   methods: {
     async confirmLogout() {
-      const result = await Swal.fire({
-        title: 'Are you sure?',
-        text: 'Do you really want to log out?',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#06693A',
-        cancelButtonColor: '#d33',
-        confirmButtonText: 'Yes, log out',
-        cancelButtonText: 'Cancel'
-      });
+  const result = await Swal.fire({
+    title: 'Are you sure?',
+    text: 'Do you really want to log out?',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#06693A',
+    cancelButtonColor: '#d33',
+    confirmButtonText: 'Yes, log out',
+    cancelButtonText: 'Cancel'
+  });
 
-      if (result.isConfirmed) {
-        window.location.href = '/logout';
+  if (result.isConfirmed) {
+    window.location.href = '/logout';
+  }
+},
+    getCombinedServiceNames(services) {
+      if (!services || services.length === 0) return 'No services';
+      
+      const serviceNames = services.map(service => service.ServiceName);
+      
+      if (serviceNames.length === 1) {
+        return serviceNames[0];
+      } else if (serviceNames.length === 2) {
+        return serviceNames.join(' and ');
+      } else {
+        return serviceNames.slice(0, -1).join(', ') + ' and ' + serviceNames[serviceNames.length - 1];
       }
     },
     async declineInsurance() {
-  // Prevent action if billing is already paid
-  if (this.selectedBilling.BillingStatus === 'Paid') {
-    this.openGenericErrorModal('Cannot decline insurance for a paid billing.');
-    return;
-  }
-
-  // Extract the base BillingID (remove '_insurance' suffix if present)
-  const billingIdStr = String(this.selectedBilling.BillingID);
-  const baseBillingID = billingIdStr.includes('_insurance')
-    ? billingIdStr.replace('_insurance', '')
-    : billingIdStr;
-
   try {
-    // Add a remark to log the action
-    const remark = `Insurance declined on ${new Date().toLocaleString()}`;
+    // Calculate TotalAmount inline to avoid undefined method error
+    const totalAmount = this.selectedBilling.services.reduce((sum, service) => {
+      return sum + (Number(service.Cost) - (Number(service.Discount) || 0));
+    }, 0);
 
-    // Call the backend to decline insurance, passing the remark
-    const response = await axios.put(
-      `/hr/billings/${baseBillingID}/decline-insurance`,
-      { remarks: remark },
-      { withCredentials: true }
-    );
+    const payload = {
+      BillingID: this.selectedBilling.BillingID,
+      BillingStatus: 'Unpaid',
+      PaymentMethod: null,
+      PaymentMethodID: null, // Explicitly set to NULL
+      ApprovalCode: null,
+      LOE: null,
+      services: this.selectedBilling.services.map(service => ({
+        BillingServiceID: service.BillingServiceID,
+        ServiceID: service.ServiceID,
+        Cost: Number(service.Cost),
+        Discount: Number(service.Discount) || 0,
+        AmountPaid: 0,
+        PaymentMethod: null,
+        ReferenceID: null,
+        Change: 0,
+        PaymentStatus: 'Unpaid',
+      })),
+      Remarks: this.selectedBilling.Remarks || '',
+      TotalAmount: totalAmount,
+      AmountPaid: 0,
+      Balance: totalAmount,
+    };
 
-    // Refresh the entire billings list
+    await axios.put(`/hr/billings/${this.selectedBilling.BillingID}/decline-insurance`, payload, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+    });
+
     await this.fetchBillings();
-
-    // Close the modal
     this.closeModal();
-
-    // Stay on the insurance tab to see the updated list
-    this.activeTab = 'insurance';
   } catch (error) {
     console.error('Error declining insurance:', error);
-    this.openGenericErrorModal('Failed to decline insurance: ' + (error.response?.data?.message || error.message));
+    this.showGenericErrorModal = true;
+    this.genericErrorMessage = 'Failed to decline insurance. Please try again.';
   }
 },
     handleTotalAmountInput() {
@@ -2116,12 +2083,6 @@ insuranceBillings() {
     async fetchBillings() {
   try {
     const response = await axios.get('/hr/billings', { withCredentials: true });
-    console.log('Raw API response with services:', response.data.map(b => ({
-      BillingID: b.BillingID,
-      Services: b.services,
-      ApprovalCode: b.ApprovalCode,
-      LOE: b.LOE
-    })));
     const billingsMap = new Map();
 
     response.data.forEach(billing => {
@@ -2134,7 +2095,6 @@ insuranceBillings() {
       const procedure = billing.Procedure;
 
       const services = Array.isArray(billing.services) ? billing.services : [];
-      console.log(`Billing ${billing.BillingID}: Services =`, services);
 
       const mappedServices = services.map((service, index) => {
         let serviceCost = service.UpdatedPrice !== null ? Number(service.UpdatedPrice) : Number(service.Cost) || 0;
@@ -2142,25 +2102,6 @@ insuranceBillings() {
         const serviceDiscount = Number(service.Discount) || 0;
 
         const calculatedBalance = serviceCost - serviceAmountPaid - serviceDiscount;
-
-        console.log(`[fetchBillings] Service ${index} in Billing ${billing.BillingID} (Raw Data):`, {
-          ServiceName: service.ServiceName,
-          PaymentMethod: service.PaymentMethod || 'N/A',
-          Cost: serviceCost,
-          AmountPaid: serviceAmountPaid,
-          Discount: serviceDiscount,
-          Balance: service.Balance || calculatedBalance,
-          ApprovalCode: billing.ApprovalCode || 'N/A'
-        });
-
-        console.log(`Service ${index} in Billing ${billing.BillingID}:`, {
-          ServiceName: service.ServiceName,
-          PaymentMethod: service.PaymentMethod,
-          Cost: serviceCost,
-          AmountPaid: serviceAmountPaid,
-          Discount: serviceDiscount,
-          Balance: service.Balance || calculatedBalance
-        });
 
         return {
           ...service,
@@ -2187,17 +2128,6 @@ insuranceBillings() {
                                     billing.ApprovalCode && 
                                     billing.ApprovalCode.trim() !== '' && 
                                     (service.AmountPaid || 0) < (service.UpdatedPrice || service.Cost);
-
-          console.log(`[fetchBillings] Categorizing Service in Billing ${billing.BillingID}:`, {
-            ServiceName: service.ServiceName,
-            PaymentMethod: paymentMethod,
-            IsExplicitInsurance: isExplicitInsurance,
-            IsPotentialInsurance: isPotentialInsurance,
-            AmountPaid: service.AmountPaid,
-            Cost: service.Cost,
-            ApprovalCode: billing.ApprovalCode || 'N/A',
-            Group: (isExplicitInsurance || isPotentialInsurance) ? 'insurance' : 'nonInsurance'
-          });
 
         if (isExplicitInsurance || isPotentialInsurance) {
           serviceGroups.insurance.push(service);
@@ -2238,41 +2168,35 @@ insuranceBillings() {
       }
 
       if (serviceGroups.nonInsurance.length > 0) {
-        const nonInsuranceBillingId = `${baseBillingID}_nonInsurance`;
-        const nonInsuranceTotalAmount = serviceGroups.nonInsurance.reduce((sum, s) => {
-          return sum + (s.UpdatedPrice !== null ? Number(s.UpdatedPrice) : Number(s.Cost));
-        }, 0);
-        const nonInsuranceTotalPaid = serviceGroups.nonInsurance.reduce((sum, s) => sum + Number(s.AmountPaid), 0);
-        const nonInsuranceDiscount = serviceGroups.nonInsurance.reduce((sum, s) => sum + Number(s.Discount), 0);
-        const nonInsuranceBalance = nonInsuranceTotalAmount - nonInsuranceTotalPaid - nonInsuranceDiscount;
+  const nonInsuranceBillingId = `${baseBillingID}_nonInsurance`;
+  const nonInsuranceTotalAmount = serviceGroups.nonInsurance.reduce((sum, s) => {
+    return sum + (s.UpdatedPrice !== null ? Number(s.UpdatedPrice) : Number(s.Cost));
+  }, 0);
+  const nonInsuranceTotalPaid = serviceGroups.nonInsurance.reduce((sum, s) => sum + Number(s.AmountPaid), 0);
+  const nonInsuranceDiscount = serviceGroups.nonInsurance.reduce((sum, s) => sum + Number(s.Discount), 0);
+  const nonInsuranceBalance = nonInsuranceTotalAmount - nonInsuranceTotalPaid - nonInsuranceDiscount;
 
-        billingsMap.set(nonInsuranceBillingId, {
-          ...billing,
-          BillingID: nonInsuranceBillingId,
-          IsStandalonePayment: isStandalonePayment,
-          TotalAmount: nonInsuranceTotalAmount,
-          TotalPaid: nonInsuranceTotalPaid,
-          Discount: nonInsuranceDiscount,
-          Balance: nonInsuranceBalance,
-          BillingStatus: billing.BillingStatus || (nonInsuranceBalance <= 0 ? 'Paid' : (nonInsuranceTotalPaid > 0 ? 'Partially Paid' : 'Unpaid')),
-          ApprovalCode: billing.ApprovalCode || null,
-          LOE: billing.LOE || null,
-          Procedure: serviceGroups.nonInsurance.map(s => s.ServiceName).join(', '),
-          services: serviceGroups.nonInsurance,
-          PaymentDate: billing.PaymentDate || billing.CreatedAt || billing.AppointmentDateTime,
-          IsInsuranceBilling: false // Add flag
-        });
-      }
+  billingsMap.set(nonInsuranceBillingId, {
+    ...billing,
+    BillingID: nonInsuranceBillingId,
+    IsStandalonePayment: isStandalonePayment,
+    TotalAmount: billing.TotalAmount || nonInsuranceTotalAmount, // Prioritize API TotalAmount
+    TotalPaid: billing.TotalPaid || nonInsuranceTotalPaid,
+    Discount: billing.Discount || nonInsuranceDiscount,
+    Balance: billing.Balance || nonInsuranceBalance, // Prioritize API Balance
+    BillingStatus: billing.BillingStatus || (nonInsuranceBalance <= 0 ? 'Paid' : (nonInsuranceTotalPaid > 0 ? 'Partially Paid' : 'Unpaid')),
+    ApprovalCode: billing.ApprovalCode || null,
+    LOE: billing.LOE || null,
+    Procedure: serviceGroups.nonInsurance.map(s => s.ServiceName).join(', '),
+    services: serviceGroups.nonInsurance,
+    PaymentDate: billing.PaymentDate || billing.CreatedAt || billing.AppointmentDateTime,
+    IsInsuranceBilling: false
+  });
+}
     });
 
     this.allBillings = Array.from(billingsMap.values());
-    console.log('Fetched billings:', this.allBillings.map(b => ({
-      BillingID: b.BillingID,
-      Services: b.services.map(s => `${s.ServiceName} (${s.PaymentMethod})`),
-      ApprovalCode: b.ApprovalCode,
-      LOE: b.LOE,
-      IsInsuranceBilling: b.IsInsuranceBilling
-    })));
+
   } catch (error) {
     console.error("Error fetching billings:", error);
     this.allBillings = [];
@@ -2294,15 +2218,12 @@ insuranceBillings() {
     async fetchPaymentMethods() {
   try {
     const response = await axios.get('/hr/payment-methods', { withCredentials: true });
-    console.log('Raw payment methods response:', response.data); // Debug the raw response
     this.paymentMethods = [{ MethodName: 'N/A', MethodType: 'Cash' }, ...response.data];
     this.insuranceProviders = response.data.filter(method => method.MethodType === 'Insurance');
-    console.log('Fetched insurance providers:', this.insuranceProviders); // Debug the filtered insurance providers
   } catch (error) {
     console.error("Error fetching payment methods:", error);
     this.paymentMethods = [{ MethodName: 'N/A', MethodType: 'Cash' }];
     this.insuranceProviders = [];
-    console.log('Insurance providers after error:', this.insuranceProviders);
   }
 },
     filterBillings() {
@@ -2399,8 +2320,6 @@ insuranceBillings() {
   openEditModal(billing) {
   this.isViewOnly = false;
   this.isFromPaidTab = this.activeTab === 'paid';
-  console.log('Opening edit modal for BillingID:', billing.BillingID);
-  console.log('Billing data:', billing);
 
   const billingIdStr = String(billing.BillingID);
   const baseBillingID = billingIdStr.includes('_insurance') || billingIdStr.includes('_nonInsurance')
@@ -2442,104 +2361,122 @@ insuranceBillings() {
   }
 
   const updatedServices = existingBilling.services.map(service => {
-    const serviceDiscount = Number(service.Discount) || 0;
-    let serviceAmountPaid = Number(service.AmountPaid) || 0;
-    let adjustedPaymentMethod = service.PaymentMethod || 'N/A';
+  const serviceDiscount = Number(service.Discount) || 0;
+  let serviceAmountPaid = Number(service.AmountPaid) || 0;
+  let adjustedPaymentMethod = service.PaymentMethod || 'N/A';
 
-    if (this.activeTab === 'unpaid' && restrictedMethodType && adjustedPaymentMethod !== 'N/A') {
-      const method = this.paymentMethods.find(m => m.MethodName === adjustedPaymentMethod);
-      const methodType = method ? method.MethodType : null;
-      if (
-        (restrictedMethodType === 'E-Wallet' || restrictedMethodType === 'Bank Payment') &&
-        methodType &&
-        methodType !== 'Cash' &&
-        methodType !== 'Insurance' &&
-        adjustedPaymentMethod !== restrictedMethodName
-      ) {
-        adjustedPaymentMethod = 'N/A';
-        serviceAmountPaid = 0;
-        service.ReferenceID = '';
-        service.Change = 0;
-      }
-    }
-
-    if (targetPaymentMethod && adjustedPaymentMethod !== targetPaymentMethod) {
-      serviceAmountPaid = 0;
-    }
-
-    const effectiveCost = (service.UpdatedPrice !== null ? Number(service.UpdatedPrice) : Number(service.Cost)) - serviceDiscount;
-    let serviceChange = Number(service.Change) || 0;
+  if (this.activeTab === 'unpaid' && restrictedMethodType && adjustedPaymentMethod !== 'N/A') {
     const method = this.paymentMethods.find(m => m.MethodName === adjustedPaymentMethod);
-    if (method && method.MethodType === 'Cash' && method.MethodName === 'Cash') {
-      serviceChange = serviceAmountPaid > effectiveCost ? serviceAmountPaid - effectiveCost : 0;
+    const methodType = method ? method.MethodType : null;
+    if (
+      (restrictedMethodType === 'E-Wallet' || restrictedMethodType === 'Bank Payment') &&
+      methodType &&
+      methodType !== 'Cash' &&
+      methodType !== 'Insurance' &&
+      adjustedPaymentMethod !== restrictedMethodName
+    ) {
+      adjustedPaymentMethod = 'N/A';
+      serviceAmountPaid = 0;
+      service.ReferenceID = '';
+      service.Change = 0;
     }
+  }
 
-    return {
-      ...service,
-      Cost: service.UpdatedPrice !== null ? Number(service.UpdatedPrice) : Number(service.Cost),
-      BasePrice: Number(service.Cost),
-      UpdatedPrice: service.UpdatedPrice !== null ? Number(service.UpdatedPrice) : null,
-      AmountPaid: serviceAmountPaid,
-      Discount: serviceDiscount,
-      Change: serviceChange,
-      Balance: effectiveCost - serviceAmountPaid,
-      PaymentStatus: serviceAmountPaid >= effectiveCost ? 'Paid' : (serviceAmountPaid > 0 ? 'Partially Paid' : 'Unpaid'),
-      PaymentMethod: adjustedPaymentMethod,
-      ReferenceID: service.ReferenceID || '', // Ensure ReferenceID is preserved
-    };
-  });
+  if (targetPaymentMethod && adjustedPaymentMethod !== targetPaymentMethod) {
+    serviceAmountPaid = 0;
+  }
+
+  // Use the billing's balance as the service cost if there's a remaining balance
+  let serviceCost;
+  if (billing.Balance > 0 && billing.Balance !== billing.TotalAmount) {
+    // If there's a remaining balance that's different from total amount, use the balance
+    serviceCost = billing.Balance;
+  } else {
+    // Otherwise use the service's updated price or original cost
+    serviceCost = service.UpdatedPrice !== null ? Number(service.UpdatedPrice) : Number(service.Cost);
+  }
+
+  const effectiveCost = serviceCost - serviceDiscount;
+  let serviceChange = Number(service.Change) || 0;
+  const method = this.paymentMethods.find(m => m.MethodName === adjustedPaymentMethod);
+  if (method && method.MethodType === 'Cash' && method.MethodName === 'Cash') {
+    serviceChange = serviceAmountPaid > effectiveCost ? serviceAmountPaid - effectiveCost : 0;
+  }
+
+  return {
+    ...service,
+    Cost: serviceCost, // Use the calculated service cost (which may be the remaining balance)
+    BasePrice: Number(service.Cost), // Store original cost from database
+    UpdatedPrice: service.UpdatedPrice !== null ? Number(service.UpdatedPrice) : null,
+    AmountPaid: serviceAmountPaid,
+    Discount: serviceDiscount,
+    Change: serviceChange,
+    Balance: effectiveCost - serviceAmountPaid,
+    PaymentStatus: serviceAmountPaid >= effectiveCost ? 'Paid' : (serviceAmountPaid > 0 ? 'Partially Paid' : 'Unpaid'),
+    PaymentMethod: adjustedPaymentMethod,
+    ReferenceID: service.ReferenceID || '',
+  };
+});
 
   const displayServices = targetPaymentMethod
     ? updatedServices.filter(s => s.PaymentMethod === targetPaymentMethod)
     : updatedServices;
 
-  const computedTotalAmount = displayServices.reduce((sum, s) => {
-    const price = s.UpdatedPrice !== null ? Number(s.UpdatedPrice) : Number(s.Cost);
-    return sum + price;
-  }, 0);
+  // Use Balance from backend as the initial TotalAmount for payment
+const computedTotalAmount = billing.Balance > 0 ? billing.Balance : displayServices.reduce((sum, s) => {
+  const price = s.UpdatedPrice !== null ? Number(s.UpdatedPrice) : Number(s.Cost);
+  return sum + price;
+}, 0);
+
+// Combine all services into a single service entry for display
+const combinedService = {
+  ServiceAvailedID: displayServices.map(s => s.ServiceAvailedID).join(','),
+  ServiceName: this.getCombinedServiceNames(displayServices),
+  Cost: computedTotalAmount,
+  BasePrice: computedTotalAmount,
+  UpdatedPrice: null,
+  AmountPaid: displayServices.reduce((sum, s) => sum + (Number(s.AmountPaid) || 0), 0),
+  Discount: displayServices.reduce((sum, s) => sum + (Number(s.Discount) || 0), 0),
+  Change: displayServices.reduce((sum, s) => sum + (Number(s.Change) || 0), 0),
+  Balance: billing.Balance || 0,
+  PaymentStatus: billing.BillingStatus === 'Paid' ? 'Paid' : (billing.BillingStatus === 'Partially Paid' ? 'Partially Paid' : 'Unpaid'),
+  PaymentMethod: targetPaymentMethod || billing.PaymentMethod || 'N/A',
+  ReferenceID: billing.ReferenceID || '',
+};
 
   this.selectedBilling = JSON.parse(JSON.stringify({
-    ...billing,
-    BillingID: baseBillingID,
-    TotalAmount: computedTotalAmount,
-    TotalPaid: displayServices.reduce((sum, s) => sum + (Number(s.AmountPaid) || 0), 0),
-    Discount: displayServices.reduce((sum, service) => sum + (Number(service.Discount) || 0), 0),
-    Balance: computedTotalAmount - 
-              displayServices.reduce((sum, s) => sum + (Number(s.AmountPaid) || 0), 0) - 
-              displayServices.reduce((sum, s) => sum + (Number(s.Discount) || 0), 0),
-    BillingStatus: billing.BillingStatus || 'Unpaid',
-    PaymentMethod: targetPaymentMethod || billing.PaymentMethod || 'N/A',
-    ReferenceID: billing.ReferenceID || '',
-    ApprovalCode: billing.ApprovalCode || '',
-    LOE: billing.LOE || '',
-    Change: displayServices.reduce((sum, s) => sum + (Number(s.Change) || 0), 0),
-    Remarks: billing.Remarks || '',
-    services: displayServices,
-    originalServices: updatedServices.map(service => ({
-      ServiceAvailedID: service.ServiceAvailedID,
-      ServiceName: service.ServiceName,
-      Cost: service.Cost,
-      Discount: service.Discount || 0,
-      UpdatedPrice: service.UpdatedPrice,
-    })),
-  }));
+  ...billing,
+  BillingID: baseBillingID,
+  TotalAmount: billing.Balance > 0 ? billing.Balance : billing.TotalAmount, // Use balance if available, otherwise original amount
+  TotalPaid: displayServices.reduce((sum, s) => sum + (Number(s.AmountPaid) || 0), 0),
+  Discount: displayServices.reduce((sum, service) => sum + (Number(service.Discount) || 0), 0),
+  Balance: billing.Balance || (billing.TotalAmount - 
+            displayServices.reduce((sum, s) => sum + (Number(s.AmountPaid) || 0), 0) - 
+            displayServices.reduce((sum, s) => sum + (Number(s.Discount) || 0), 0)),
+  BillingStatus: billing.BillingStatus || 'Unpaid',
+  PaymentMethod: targetPaymentMethod || billing.PaymentMethod || 'N/A',
+  ReferenceID: billing.ReferenceID || '',
+  ApprovalCode: billing.ApprovalCode || '',
+  LOE: billing.LOE || '',
+  Change: displayServices.reduce((sum, s) => sum + (Number(s.Change) || 0), 0),
+  Remarks: billing.Remarks || '',
+  services: [combinedService], // Use single combined service instead of multiple services
+  originalServices: updatedServices.map(service => ({
+    ServiceAvailedID: service.ServiceAvailedID,
+    ServiceName: service.ServiceName,
+    Cost: service.Cost,
+    Discount: service.Discount || 0,
+    UpdatedPrice: service.UpdatedPrice,
+  })),
+}));
 
-  console.log('[openEditModal] Initial selectedBilling.services:', this.selectedBilling.services.map(s => ({
-    ServiceName: s.ServiceName,
-    PaymentMethod: s.PaymentMethod,
-    ReferenceID: s.ReferenceID
-  })));
-
-  // Initialize sharedReferenceID when opening the modal
   if (this.shouldShowSharedReferenceInput) {
-    // Find the first non-empty Reference ID from services
     const firstReferenceID = this.selectedBilling.services.find(
       service => service.ReferenceID && service.ReferenceID.trim() !== ''
     )?.ReferenceID || '';
     this.sharedReferenceID = firstReferenceID;
   }
 
-  // Ensure Reference IDs are copied for services with the same payment method
   this.initializeReferenceIds();
 
   this.isInitiallyPaid = billing.BillingStatus === 'Paid';
@@ -2566,37 +2503,37 @@ openViewModal(billing) {
     ReferenceID: service.ReferenceID || '', // Ensure ReferenceID is preserved
   }));
 
-  // Populate selectedBilling with the mapped services
+  // Combine services into a single entry
+  const combinedService = {
+    ServiceAvailedID: updatedServices.map(s => s.ServiceAvailedID).join(','),
+    ServiceName: this.getCombinedServiceNames(updatedServices),
+    Cost: billing.IsStandalonePayment ? billing.TotalPaid : updatedServices.reduce((sum, s) => sum + Number(s.Cost), 0),
+    BasePrice: billing.IsStandalonePayment ? billing.TotalPaid : updatedServices.reduce((sum, s) => sum + Number(s.Cost), 0),
+    AmountPaid: updatedServices.reduce((sum, s) => sum + Number(s.AmountPaid), 0),
+    Discount: updatedServices.reduce((sum, s) => sum + Number(s.Discount), 0),
+    Change: updatedServices.reduce((sum, s) => sum + Number(s.Change), 0),
+    Balance: Number(billing.Balance) || 0,
+    PaymentStatus: billing.BillingStatus === 'Paid' ? 'Paid' : (billing.BillingStatus === 'Partially Paid' ? 'Partially Paid' : 'Unpaid'),
+    PaymentMethod: billing.PaymentMethod || (updatedServices[0]?.PaymentMethod || 'N/A'),
+    ReferenceID: billing.ReferenceID || (updatedServices[0]?.ReferenceID || ''),
+  };
+
+  // Populate selectedBilling with the combined service
   this.selectedBilling = JSON.parse(JSON.stringify({
     ...billing,
-    TotalAmount: billing.IsStandalonePayment
-      ? billing.TotalPaid
-      : updatedServices.reduce((sum, service) => sum + (Number(service.Cost) || 0), 0),
-    TotalPaid: updatedServices.reduce((sum, service) => sum + (Number(service.AmountPaid) || 0), 0),
+    TotalAmount: billing.IsStandalonePayment ? billing.TotalPaid : updatedServices.reduce((sum, s) => sum + Number(s.Cost), 0),
+    TotalPaid: updatedServices.reduce((sum, s) => sum + Number(s.AmountPaid), 0),
     AmountPaid: billing.AmountPaid || 0, // Use AmountPaid directly from billing
-    Discount: updatedServices.reduce((sum, service) => sum + (Number(service.Discount) || 0), 0),
+    Discount: updatedServices.reduce((sum, s) => sum + Number(s.Discount), 0),
     Balance: Number(billing.Balance) || 0,
     BillingStatus: billing.BillingStatus || 'Paid',
-    PaymentMethod: billing.PaymentMethod || 'N/A', // Top-level PaymentMethod (e.g., "Multiple")
-    ReferenceID: billing.ReferenceID || '',
+    PaymentMethod: billing.PaymentMethod || (updatedServices[0]?.PaymentMethod || 'N/A'), // Top-level PaymentMethod
+    ReferenceID: billing.ReferenceID || (updatedServices[0]?.ReferenceID || ''),
     ApprovalCode: billing.ApprovalCode || '',
     LOE: billing.LOE || '',
-    Change: updatedServices.reduce((sum, service) => sum + (Number(service.Change) || 0), 0),
+    Change: updatedServices.reduce((sum, s) => sum + Number(s.Change), 0),
     Remarks: billing.Remarks || '',
-    services: billing.IsStandalonePayment
-      ? [{
-          ServiceName: 'Standalone Payment',
-          Cost: billing.TotalPaid,
-          BasePrice: billing.TotalPaid,
-          AmountPaid: billing.TotalPaid,
-          Discount: 0,
-          Balance: 0,
-          PaymentStatus: 'Paid',
-          PaymentMethod: billing.PaymentMethod || 'N/A',
-          ReferenceID: billing.ReferenceID || '',
-          Change: billing.Change || 0,
-        }]
-      : updatedServices,
+    services: [combinedService], // Use single combined service
     originalServices: updatedServices.map(service => ({
       ServiceAvailedID: service.ServiceAvailedID,
       ServiceName: service.ServiceName,
@@ -2695,17 +2632,14 @@ openViewModal(billing) {
       }
     },
     initializeReferenceIds() {
-      console.log('[initializeReferenceIds] Starting Reference ID initialization...');
       this.selectedBilling.services.forEach((service, index) => {
         const method = this.paymentMethods.find(m => m.MethodName === service.PaymentMethod);
         if (!method) {
-          console.log(`[initializeReferenceIds] Service ${index} (${service.ServiceName}): No payment method found for ${service.PaymentMethod}`);
           return;
         }
 
         const requiresReferenceId = ['E-Wallet', 'Bank Payment'].includes(method.MethodType);
         if (!requiresReferenceId) {
-          console.log(`[initializeReferenceIds] Service ${index} (${service.ServiceName}): Payment method ${method.MethodName} does not require Reference ID`);
           return;
         }
 
@@ -2716,31 +2650,23 @@ openViewModal(billing) {
         });
 
         if (firstMatchingService) {
-          console.log(`[initializeReferenceIds] Service ${index} (${service.ServiceName}): Found matching service at index ${this.selectedBilling.services.indexOf(firstMatchingService)} with Reference ID ${firstMatchingService.ReferenceID}`);
           service.ReferenceID = firstMatchingService.ReferenceID;
         } else {
-          console.log(`[initializeReferenceIds] Service ${index} (${service.ServiceName}): No previous matching service found with a Reference ID`);
+
         }
       });
-      console.log('[initializeReferenceIds] Final services state:', this.selectedBilling.services.map(s => ({
-        ServiceName: s.ServiceName,
-        PaymentMethod: s.PaymentMethod,
-        ReferenceID: s.ReferenceID
-      })));
     },
 
     isReferenceIdDisabled(service, currentIndex) {
       if (this.isViewOnly) return true;
 
       const method = this.paymentMethods.find(m => m.MethodName === service.PaymentMethod);
-      if (!method) {
-        console.log(`[isReferenceIdDisabled] Service at index ${currentIndex} (${service.ServiceName}): No payment method found for ${service.PaymentMethod}`);
+      if (!method) {    
         return false;
       }
 
       const requiresReferenceId = ['E-Wallet', 'Bank Payment'].includes(method.MethodType);
       if (!requiresReferenceId) {
-        console.log(`[isReferenceIdDisabled] Service at index ${currentIndex} (${service.ServiceName}): Payment method ${method.MethodName} does not require Reference ID`);
         return false;
       }
 
@@ -2751,53 +2677,53 @@ openViewModal(billing) {
       });
 
       const isDisabled = !!firstMatchingService;
-      console.log(`[isReferenceIdDisabled] Service at index ${currentIndex} (${service.ServiceName}): Reference ID field is ${isDisabled ? 'disabled' : 'enabled'}`);
       return isDisabled;
     },
 
     updateServicePaymentMethod(service) {
-      const method = this.paymentMethods.find(m => m.MethodName === service.PaymentMethod);
-      if (!method) {
-        service.PaymentMethod = '';
-        service.ReferenceID = '';
-        service.Change = 0;
-        service.AmountPaid = 0;
-        service.PaymentStatus = 'Unpaid';
-        this.calculateServiceBalanceAndChange(service);
-        this.calculateTotalBalanceAndStatus();
-        return;
-      }
-      const methodType = method.MethodType;
+  const method = this.paymentMethods.find(m => m.MethodName === service.PaymentMethod);
+  if (!method) {
+    service.PaymentMethod = '';
+    service.ReferenceID = '';
+    service.Change = 0;
+    service.AmountPaid = 0;
+    service.PaymentStatus = 'Unpaid';
+    this.calculateServiceBalanceAndChange(service);
+    this.calculateTotalBalanceAndStatus();
+    return;
+  }
+  const methodType = method.MethodType;
+  const methodName = method.MethodName;
 
-      // If the payment method requires a Reference ID, check for a previous service with the same method
-      const requiresReferenceId = ['E-Wallet', 'Bank Payment'].includes(methodType);
-      if (requiresReferenceId) {
-        const currentIndex = this.selectedBilling.services.indexOf(service);
-        const firstMatchingService = this.selectedBilling.services.find((s, index) => {
-          const sMethod = this.paymentMethods.find(m => m.MethodName === s.PaymentMethod);
-          return sMethod && sMethod.MethodName === method.MethodName && index < currentIndex;
-        });
+  // If the payment method requires a Reference ID, check for a previous service with the same method
+  const requiresReferenceId = ['E-Wallet', 'Bank Payment'].includes(methodType);
+  if (requiresReferenceId) {
+    const currentIndex = this.selectedBilling.services.indexOf(service);
+    const firstMatchingService = this.selectedBilling.services.find((s, index) => {
+      const sMethod = this.paymentMethods.find(m => m.MethodName === s.PaymentMethod);
+      return sMethod && sMethod.MethodName === method.MethodName && index < currentIndex;
+    });
 
-        if (firstMatchingService) {
-          // Copy the Reference ID from the first matching service
-          service.ReferenceID = firstMatchingService.ReferenceID;
-        }
-      }
+    if (firstMatchingService) {
+      // Copy the Reference ID from the first matching service
+      service.ReferenceID = firstMatchingService.ReferenceID;
+    }
+  }
 
-      // Reset fields if the payment method doesn't require them
-      if (!requiresReferenceId) {
-        service.ReferenceID = '';
-      }
-      if (methodType !== 'Cash' || method.MethodName !== 'Cash') {
-        service.Change = 0;
-      }
-      if (methodType === 'Insurance') {
-        service.AmountPaid = 0;
-        service.PaymentStatus = 'Unpaid';
-      }
-      this.calculateServiceBalanceAndChange(service);
-      this.calculateTotalBalanceAndStatus();
-    },
+  // Reset fields if the payment method doesn't require a Reference ID (including Cash, Medicard, Maxicare)
+  if (!requiresReferenceId || ['Cash', 'Medicard', 'Maxicare'].includes(methodName)) {
+    service.ReferenceID = '';
+  }
+  if (methodType !== 'Cash' || methodName !== 'Cash') {
+    service.Change = 0;
+  }
+  if (methodType === 'Insurance') {
+    service.AmountPaid = 0;
+    service.PaymentStatus = 'Unpaid';
+  }
+  this.calculateServiceBalanceAndChange(service);
+  this.calculateTotalBalanceAndStatus();
+},
     handleServiceAmountPaidInput(service) {
       if (!service.PaymentMethod || service.PaymentMethod === 'N/A') {
         service.AmountPaid = 0;
@@ -2996,236 +2922,247 @@ validateSelectedLOE() {
 },
 
 async updateBilling() {
-      try {
-        this.isUpdating = true;
+  try {
+    this.isUpdating = true;
 
-        const hasNegativePrice = this.selectedBilling.services.some(service => {
-          const price = service.UpdatedPrice !== null ? Number(service.UpdatedPrice) : Number(service.Cost);
-          return price < 0;
-        });
+    const hasNegativePrice = this.selectedBilling.services.some(service => {
+      const price = service.UpdatedPrice !== null ? Number(service.UpdatedPrice) : Number(service.Cost);
+      return price < 0;
+    });
 
-        if (hasNegativePrice) {
-          this.showNegativePriceModal = true;
-          this.selectedBilling.services.forEach(service => {
-            const price = service.UpdatedPrice !== null ? Number(service.UpdatedPrice) : Number(service.Cost);
-            if (price < 0) {
-              service.Cost = service.BasePrice;
-              service.UpdatedPrice = null;
-              this.$nextTick(() => {
-                const input = document.querySelector(`input[value="${price}"]`);
-                if (input) input.value = service.BasePrice.toString();
-              });
-            }
+    if (hasNegativePrice) {
+      this.showNegativePriceModal = true;
+      this.selectedBilling.services.forEach(service => {
+        const price = service.UpdatedPrice !== null ? Number(service.UpdatedPrice) : Number(service.Cost);
+        if (price < 0) {
+          service.Cost = service.BasePrice;
+          service.UpdatedPrice = null;
+          this.$nextTick(() => {
+            const input = document.querySelector(`input[value="${price}"]`);
+            if (input) input.value = service.BasePrice.toString();
           });
-          this.updateTotalAmount();
+        }
+      });
+      this.updateTotalAmount();
+      return;
+    }
+
+    const totalAmount = Number(this.selectedBilling.TotalAmount);
+    if (!Number.isInteger(totalAmount) || totalAmount < 0) {
+      this.referenceIdErrorMessage = 'The Total Amount must be a whole number (e.g., 1000, 5000).';
+      this.showReferenceIdErrorModal = true;
+      return;
+    }
+
+    const hasInsuranceService = this.selectedBilling.services.some(service =>
+      this.insuranceProviders.some(p => p.MethodName === service.PaymentMethod)
+    );
+
+    let totalAmountPaid = 0;
+    let approvalCode = null;
+    let loe = null;
+    const isInsuranceTab = this.activeTab === 'insurance';
+
+    this.selectedBilling.services.forEach(service => {
+      const serviceCost = Number(service.Cost) || 0;
+      const serviceDiscount = Number(service.Discount) || 0;
+      const serviceAmountPaid = Number(service.AmountPaid) || 0;
+      const effectiveCost = serviceCost - serviceDiscount;
+
+      if (serviceAmountPaid >= effectiveCost && serviceAmountPaid > 0) {
+        service.PaymentStatus = 'Paid';
+        service.Balance = 0;
+      } else if (serviceAmountPaid > 0) {
+        service.PaymentStatus = 'Partially Paid';
+        service.Balance = effectiveCost - serviceAmountPaid;
+      } else {
+        service.PaymentStatus = 'Unpaid';
+        service.Balance = effectiveCost;
+      }
+
+      totalAmountPaid += serviceAmountPaid;
+    });
+
+    if (this.shouldShowSharedReferenceInput) {
+      this.selectedBilling.services.forEach(service => {
+        service.ReferenceID = this.sharedReferenceID;
+      });
+    }
+
+    const paidServices = this.selectedBilling.services.filter(service => service.AmountPaid > 0);
+    for (const service of paidServices) {
+      const method = this.paymentMethods.find(m => m.MethodName === service.PaymentMethod);
+      const methodType = method ? method.MethodType : 'Cash';
+      if ((methodType === 'E-Wallet' || methodType === 'Bank Payment') && !service.ReferenceID) {
+        this.referenceIdErrorMessage = 'Please enter a Reference ID for this payment method.';
+        this.showReferenceIdErrorModal = true;
+        return;
+      }
+      if (methodType === 'E-Wallet' || methodType === 'Bank Payment') {
+        const isValidReferenceID = /^[A-Za-z0-9]{12,13}$/.test(service.ReferenceID);
+        if (!isValidReferenceID) {
+          this.referenceIdErrorMessage = 'Please enter a valid 12-13 character alphanumeric Reference ID.';
+          this.showReferenceIdErrorModal = true;
           return;
         }
+      }
+    }
 
-        const totalAmount = Number(this.selectedBilling.TotalAmount);
-        if (!Number.isInteger(totalAmount) || totalAmount < 0) {
-          this.referenceIdErrorMessage = 'The Total Amount must be a whole number (e.g., 1000, 5000).';
+    if (isInsuranceTab) {
+      const requiresInsuranceValidation = this.selectedBilling.services.some(service =>
+        this.insuranceProviders.some(p => p.MethodName === service.PaymentMethod) && service.PaymentStatus === 'Paid'
+      );
+
+      if (hasInsuranceService && requiresInsuranceValidation) {
+        if (!this.isSelectedInsuranceFormValid) {
+          this.referenceIdErrorMessage = 'Please correct the errors in the insurance reference inputs before updating.';
           this.showReferenceIdErrorModal = true;
           return;
         }
 
-        const hasInsuranceService = this.selectedBilling.services.some(service =>
-          this.insuranceProviders.some(p => p.MethodName === service.PaymentMethod)
+        const insuranceServiceBeingPaid = this.selectedBilling.services.find(service =>
+          this.insuranceProviders.some(p => p.MethodName === service.PaymentMethod) && service.PaymentStatus === 'Paid'
         );
 
-        let totalAmountPaid = 0;
-        let approvalCode = null;
-        let loe = null;
-        const isInsuranceTab = this.activeTab === 'insurance';
+        if (insuranceServiceBeingPaid) {
+          approvalCode = this.selectedBilling.ApprovalCode || null;
+          loe = insuranceServiceBeingPaid.PaymentMethod === 'Maxicare' ? this.selectedBilling.LOE || null : null;
 
-        this.selectedBilling.services.forEach(service => {
-          const serviceCost = Number(service.Cost) || 0;
-          const serviceDiscount = Number(service.Discount) || 0;
-          const serviceAmountPaid = Number(service.AmountPaid) || 0;
-          const effectiveCost = serviceCost - serviceDiscount;
-
-          if (serviceAmountPaid >= effectiveCost && serviceAmountPaid > 0) {
-            service.PaymentStatus = 'Paid';
-            service.Balance = 0;
-          } else if (serviceAmountPaid > 0) {
-            service.PaymentStatus = 'Partially Paid';
-            service.Balance = effectiveCost - serviceAmountPaid;
-          } else {
-            service.PaymentStatus = 'Unpaid';
-            service.Balance = effectiveCost;
-          }
-
-          totalAmountPaid += serviceAmountPaid;
-        });
-
-        // Apply shared Reference ID to all services if applicable
-        if (this.shouldShowSharedReferenceInput) {
-          this.selectedBilling.services.forEach(service => {
-            service.ReferenceID = this.sharedReferenceID;
-          });
-        }
-
-        const paidServices = this.selectedBilling.services.filter(service => service.AmountPaid > 0);
-        for (const service of paidServices) {
-          const method = this.paymentMethods.find(m => m.MethodName === service.PaymentMethod);
-          const methodType = method ? method.MethodType : 'Cash';
-          if ((methodType === 'E-Wallet' || methodType === 'Bank Payment') && !service.ReferenceID) {
-            this.referenceIdErrorMessage = 'Please enter a Reference ID for this payment method.';
+          if (!approvalCode) {
+            this.referenceIdErrorMessage = 'Approval Code is required for insurance payments when marking as paid.';
             this.showReferenceIdErrorModal = true;
             return;
           }
-          if (methodType === 'E-Wallet' || methodType === 'Bank Payment') {
-            const isValidReferenceID = /^[A-Za-z0-9]{12,13}$/.test(service.ReferenceID);
-            if (!isValidReferenceID) {
-              this.referenceIdErrorMessage = 'Please enter a valid 12-13 character alphanumeric Reference ID.';
-              this.showReferenceIdErrorModal = true;
-              return;
-            }
-          }
         }
-
-        if (isInsuranceTab) {
-          const requiresInsuranceValidation = this.selectedBilling.services.some(service =>
-            this.insuranceProviders.some(p => p.MethodName === service.PaymentMethod) && service.PaymentStatus === 'Paid'
-          );
-
-          if (hasInsuranceService && requiresInsuranceValidation) {
-            if (!this.isSelectedInsuranceFormValid) {
-              this.referenceIdErrorMessage = 'Please correct the errors in the insurance reference inputs before updating.';
-              this.showReferenceIdErrorModal = true;
-              return;
-            }
-
-            const insuranceServiceBeingPaid = this.selectedBilling.services.find(service =>
-              this.insuranceProviders.some(p => p.MethodName === service.PaymentMethod) && service.PaymentStatus === 'Paid'
-            );
-
-            if (insuranceServiceBeingPaid) {
-              approvalCode = this.selectedBilling.ApprovalCode || null;
-              loe = insuranceServiceBeingPaid.PaymentMethod === 'Maxicare' ? this.selectedBilling.LOE || null : null;
-
-              if (!approvalCode) {
-                this.referenceIdErrorMessage = 'Approval Code is required for insurance payments when marking as paid.';
-                this.showReferenceIdErrorModal = true;
-                return;
-              }
-            }
-          }
-        }
-
-        const allServicesPaid = this.selectedBilling.services.every(service => service.PaymentStatus === 'Paid');
-        const anyServicePaid = this.selectedBilling.services.some(service => service.PaymentStatus === 'Paid' || service.PaymentStatus === 'Partially Paid');
-        this.selectedBilling.BillingStatus = allServicesPaid ? 'Paid' : (anyServicePaid ? 'Partially Paid' : 'Unpaid');
-
-        const billingIdStr = String(this.selectedBilling.BillingID);
-        let baseBillingID = billingIdStr;
-        let suffix = '';
-        if (billingIdStr.includes('_insurance')) {
-          suffix = '_insurance';
-          baseBillingID = billingIdStr.replace('_insurance', '');
-        } else if (billingIdStr.includes('_nonInsurance')) {
-          suffix = '_nonInsurance';
-          baseBillingID = billingIdStr.replace('_nonInsurance', '');
-        } else if (billingIdStr.includes('_PM_') || billingIdStr.includes('_S_')) {
-          baseBillingID = billingIdStr.split(/_PM_|_S_/)[0];
-        }
-
-        const serviceGroups = {};
-        this.selectedBilling.services.forEach((service, index) => {
-          const paymentMethod = service.PaymentMethod || 'N/A';
-          const isInsurance = this.insuranceProviders.some(p => p.MethodName === paymentMethod);
-          const groupKey = isInsurance ? paymentMethod : 'non-insurance';
-          if (!serviceGroups[groupKey]) {
-            serviceGroups[groupKey] = [];
-          }
-          serviceGroups[groupKey].push({ ...service, Index: index });
-        });
-
-        const updatedBillings = [];
-        let groupIndex = 0;
-
-        for (const [groupKey, groupServices] of Object.entries(serviceGroups)) {
-          const isInsuranceGroup = groupKey !== 'non-insurance';
-          const newBillingID = groupIndex === 0 ? `${baseBillingID}${suffix}` : `${baseBillingID}_S_${groupIndex}`;
-          groupIndex++;
-
-          const groupTotalAmount = groupServices.reduce((sum, s) => sum + Number(s.Cost), 0);
-          const groupTotalPaid = groupServices.reduce((sum, s) => sum + Number(s.AmountPaid), 0);
-          const groupDiscount = groupServices.reduce((sum, s) => sum + Number(s.Discount), 0);
-          const groupBalance = groupTotalAmount - groupTotalPaid - groupDiscount;
-
-          const primaryPaymentMethod = groupServices[0].PaymentMethod;
-          const primaryReferenceID = groupServices[0].ReferenceID || null;
-
-          const groupApprovalCode = isInsuranceGroup ? this.selectedBilling.ApprovalCode : null;
-          const groupLOE = isInsuranceGroup && primaryPaymentMethod === 'Maxicare' ? this.selectedBilling.LOE : null;
-
-          const payload = {
-            BillingID: newBillingID,
-            TotalAmount: groupTotalAmount,
-            Discount: groupDiscount,
-            AmountPaid: groupTotalPaid,
-            PaymentMethod: primaryPaymentMethod,
-            ReferenceID: primaryReferenceID,
-            ApprovalCode: groupApprovalCode,
-            LOE: groupLOE,
-            Change: groupServices.reduce((sum, s) => sum + (Number(s.Change) || 0), 0),
-            Remarks: this.selectedBilling.Remarks || null,
-            activeTab: isInsuranceGroup ? 'insurance' : this.activeTab,
-            services: groupServices.map(service => ({
-              ServiceAvailedID: service.ServiceAvailedID,
-              ServiceName: service.ServiceName,
-              Cost: Number(service.Cost),
-              UpdatedPrice: service.UpdatedPrice !== null ? Number(service.UpdatedPrice) : null,
-              Discount: Number(service.Discount) || 0,
-              AmountPaid: Number(service.AmountPaid) || 0,
-              PaymentMethod: service.PaymentMethod,
-              ReferenceID: service.ReferenceID || null,
-              Balance: service.Balance,
-              PaymentStatus: service.PaymentStatus,
-              Change: Number(service.Change) || 0,
-            })),
-          };
-
-          console.log(`Sending payload for BillingID ${newBillingID}:`, JSON.stringify(payload, null, 2));
-          const response = await axios.put(`/hr/billings/${newBillingID}`, payload, { withCredentials: true });
-
-          if (response.status === 200) {
-            const updatedBilling = {
-              ...response.data.billing,
-              BillingID: String(response.data.billing.BillingID) + suffix,
-              PatientName: this.selectedBilling.PatientName,
-              AppointmentDateTime: this.selectedBilling.AppointmentDateTime,
-              Procedure: response.data.billing.Procedure || groupServices.map(s => s.ServiceName).join(', '),
-              Amount: groupTotalAmount,
-              TotalAmount: groupTotalAmount,
-              TotalPaid: groupTotalPaid,
-              BillingStatus: response.data.billing.BillingStatus,
-              services: response.data.billing.services,
-              IsStandalonePayment: false,
-            };
-            updatedBillings.push(updatedBilling);
-          }
-        }
-
-        this.allBillings = this.allBillings.filter(b => String(b.BillingID) !== `${baseBillingID}${suffix}`);
-        this.allBillings.push(...updatedBillings);
-
-        this.showModal = false;
-        this.$emit('billing-updated');
-
-        if (hasInsuranceService) {
-          this.activeTab = 'insurance';
-        } else if (allServicesPaid) {
-          this.activeTab = 'paid';
-        }
-      } catch (error) {
-        console.error('Error updating billing:', error);
-        this.referenceIdErrorMessage = 'Failed to update billing: ' + (error.response?.data?.message || error.message);
-        this.showReferenceIdErrorModal = true;
-      } finally {
-        this.isUpdating = false;
       }
-    },
+    }
+
+    const allServicesPaid = this.selectedBilling.services.every(service => service.PaymentStatus === 'Paid');
+    const anyServicePaid = this.selectedBilling.services.some(service => service.PaymentStatus === 'Paid' || service.PaymentStatus === 'Partially Paid');
+    this.selectedBilling.BillingStatus = allServicesPaid ? 'Paid' : (anyServicePaid ? 'Partially Paid' : 'Unpaid');
+
+    const billingIdStr = String(this.selectedBilling.BillingID);
+    let baseBillingID = billingIdStr;
+    let suffix = '';
+    if (billingIdStr.includes('_insurance')) {
+      suffix = '_insurance';
+      baseBillingID = billingIdStr.replace('_insurance', '');
+    } else if (billingIdStr.includes('_nonInsurance')) {
+      suffix = '_nonInsurance';
+      baseBillingID = billingIdStr.replace('_nonInsurance', '');
+    } else if (billingIdStr.includes('_PM_') || billingIdStr.includes('_S_')) {
+      baseBillingID = billingIdStr.split(/_PM_|_S_/)[0];
+    }
+
+    const serviceGroups = {};
+    this.selectedBilling.services.forEach((service, index) => {
+      const paymentMethod = service.PaymentMethod || 'N/A';
+      const isInsurance = this.insuranceProviders.some(p => p.MethodName === paymentMethod);
+      const groupKey = isInsurance ? paymentMethod : 'non-insurance';
+      if (!serviceGroups[groupKey]) {
+        serviceGroups[groupKey] = [];
+      }
+      serviceGroups[groupKey].push({ ...service, Index: index });
+    });
+
+    const updatedBillings = [];
+    let groupIndex = 0;
+
+    for (const [groupKey, groupServices] of Object.entries(serviceGroups)) {
+      const isInsuranceGroup = groupKey !== 'non-insurance';
+      const newBillingID = groupIndex === 0 ? `${baseBillingID}${suffix}` : `${baseBillingID}_S_${groupIndex}`;
+      groupIndex++;
+
+      // Use Balance as the reference total for payment updates
+      const groupTotalAmount = this.selectedBilling.Balance > 0 ? this.selectedBilling.Balance : groupServices.reduce((sum, s) => sum + Number(s.Cost), 0);
+      const groupTotalPaid = groupServices.reduce((sum, s) => sum + Number(s.AmountPaid), 0);
+      const groupDiscount = groupServices.reduce((sum, s) => sum + Number(s.Discount), 0);
+      const groupBalance = this.selectedBilling.Balance || (groupTotalAmount - groupTotalPaid - groupDiscount);
+
+      const primaryPaymentMethod = groupServices[0].PaymentMethod;
+      const primaryReferenceID = groupServices[0].ReferenceID || null;
+
+      const groupApprovalCode = isInsuranceGroup ? this.selectedBilling.ApprovalCode : null;
+      const groupLOE = isInsuranceGroup && primaryPaymentMethod === 'Maxicare' ? this.selectedBilling.LOE : null;
+
+      const payload = {
+    TotalAmount: this.selectedBilling.TotalAmount, // Original 9k
+    Discount: this.selectedBilling.Discount,
+    AmountPaid: groupTotalPaid,
+    Balance: groupBalance,
+    PaymentMethod: primaryPaymentMethod,
+    ReferenceID: primaryReferenceID,
+    ApprovalCode: groupApprovalCode,
+    LOE: groupLOE,
+    Change: groupServices.reduce((sum, s) => sum + (Number(s.Change) || 0), 0),
+    Remarks: this.selectedBilling.Remarks || null,
+    activeTab: isInsuranceGroup ? 'insurance' : this.activeTab,
+    services: groupServices.map(service => {
+  // Handle combined services (multiple ServiceAvailedIDs)
+  const serviceAvailedIds = service.ServiceAvailedID.toString().includes(',') 
+    ? service.ServiceAvailedID.toString().split(',')
+    : [service.ServiceAvailedID];
+  
+  return serviceAvailedIds.map(id => ({
+    ServiceAvailedID: id.trim(),
+    ServiceName: service.ServiceName,
+    Cost: Number(service.Cost) / serviceAvailedIds.length, // Distribute cost evenly
+    UpdatedPrice: service.UpdatedPrice !== null ? Number(service.UpdatedPrice) / serviceAvailedIds.length : null,
+    Discount: (Number(service.Discount) || 0) / serviceAvailedIds.length,
+    AmountPaid: (Number(service.AmountPaid) || 0) / serviceAvailedIds.length,
+    PaymentMethod: service.PaymentMethod,
+    ReferenceID: service.ReferenceID || null,
+    Balance: service.Balance / serviceAvailedIds.length,
+    PaymentStatus: service.PaymentStatus,
+    Change: (Number(service.Change) || 0) / serviceAvailedIds.length,
+  }));
+}).flat(),
+      };
+
+      const response = await axios.put(`/hr/billings/${newBillingID}`, payload, { withCredentials: true });
+
+      if (response.status === 200) {
+        const updatedBilling = {
+          ...response.data.billing,
+          BillingID: String(response.data.billing.BillingID) + suffix,
+          PatientName: this.selectedBilling.PatientName,
+          AppointmentDateTime: this.selectedBilling.AppointmentDateTime,
+          Procedure: response.data.billing.Procedure || groupServices.map(s => s.ServiceName).join(', '),
+          Amount: groupTotalAmount,
+          TotalAmount: groupTotalAmount,
+          TotalPaid: groupTotalPaid,
+          Balance: groupBalance,
+          BillingStatus: response.data.billing.BillingStatus,
+          services: response.data.billing.services,
+          IsStandalonePayment: false,
+        };
+        updatedBillings.push(updatedBilling);
+      }
+    }
+
+    this.allBillings = this.allBillings.filter(b => String(b.BillingID) !== `${baseBillingID}${suffix}`);
+    this.allBillings.push(...updatedBillings);
+
+    // ADD THESE LINES:
+await this.fetchBillings();
+this.activeTab = 'unpaid';
+
+    this.showModal = false;
+    this.$emit('billing-updated');
+
+    if (hasInsuranceService) {
+      this.activeTab = 'insurance';
+    } else if (allServicesPaid) {
+      this.activeTab = 'paid';
+    }
+  } catch (error) {
+    console.error('Error updating billing:', error);
+    this.referenceIdErrorMessage = 'Failed to update billing: ' + (error.response?.data?.message || error.message);
+    this.showReferenceIdErrorModal = true;
+  } finally {
+    this.isUpdating = false;
+  }
+},
     async fetchPatientsWithBalances() {
       this.isLoadingPatients = true;
       try {
@@ -3409,6 +3346,8 @@ async updateBilling() {
 
     this.showSuccessModal = true;
     this.closeAddPaymentModal();
+    await this.fetchBillings();
+this.activeTab = 'unpaid';
     await this.fetchPatientsWithBalances();
   } catch (error) {
     console.error('Error adding payment:', error);
@@ -3443,9 +3382,9 @@ async updateBilling() {
       }
     },
     closeSuccessModal() {
-      this.showSuccessModal = false;
-      this.fetchBillings();
-    },
+  this.showSuccessModal = false;
+  this.activeTab = 'unpaid'; // ADD THIS LINE
+},
     closeReferenceIdErrorModal() {
       this.showReferenceIdErrorModal = false;
       this.referenceIdErrorMessage = '';
@@ -3458,6 +3397,24 @@ async updateBilling() {
       this.showGenericErrorModal = false;
       this.genericErrorMessage = '';
     },
+    startAutoRefresh() {
+  this.refreshInterval = setInterval(async () => {
+    await this.fetchBillings();
+    await this.fetchPatientsWithBalances();
+  }, 30000);
+},
+
+stopAutoRefresh() {
+  if (this.refreshInterval) {
+    clearInterval(this.refreshInterval);
+    this.refreshInterval = null;
+  }
+},
+
+async manualRefresh() {
+  await this.fetchBillings();
+  await this.fetchPatientsWithBalances();
+},
     handleServiceCostChange(service) {
       if (service.Cost < 0) {
         service.Cost = 0;
@@ -3477,31 +3434,31 @@ async updateBilling() {
     },
 
     setServicePrice(service, value) {
-      let newPrice = Number(value);
-      
-      if (newPrice < 0) {
-        this.showNegativePriceModal = true;
-        service.Cost = service.BasePrice;
-        service.UpdatedPrice = null;
-        this.$nextTick(() => {
-          const input = document.querySelector(`input[value="${value}"]`);
-          if (input) {
-            input.value = service.BasePrice.toString();
-          }
-        });
-      } else {
-        const originalCost = Number(service.BasePrice);
-        if (Math.abs(newPrice - originalCost) > 0.01) {
-          service.UpdatedPrice = newPrice;
-        } else {
-          service.UpdatedPrice = null;
-        }
-        service.Cost = newPrice;
+  let newPrice = Number(value);
+  
+  if (newPrice < 0) {
+    this.showNegativePriceModal = true;
+    service.Cost = service.BasePrice;
+    service.UpdatedPrice = null;
+    this.$nextTick(() => {
+      const input = document.querySelector(`input[value="${value}"]`);
+      if (input) {
+        input.value = service.BasePrice.toString();
       }
+    });
+  } else {
+    const originalCost = Number(service.BasePrice);
+    if (Math.abs(newPrice - originalCost) > 0.01) {
+      service.UpdatedPrice = newPrice;
+    } else {
+      service.UpdatedPrice = null;
+    }
+    service.Cost = newPrice;
+  }
 
-      this.calculateServiceBalanceAndChange(service);
-      this.updateTotalAmount();
-    },
+  this.calculateServiceBalanceAndChange(service);
+  this.updateTotalAmount();
+},
   },
 };
 </script>
@@ -5086,5 +5043,8 @@ textarea:disabled {
   }
 }
 
-</style>
+.nav-link {
+    margin-top: -30px
+}
 
+</style>
