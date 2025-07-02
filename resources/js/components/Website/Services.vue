@@ -1,7 +1,7 @@
 <template>
   <!-- Responsive Navbar -->
   <nav>
-    <a href="/" class="logo-link"><img src="@/components/Images/ATDC_logo.png" alt="Dental Clinic Logo"/></a>
+    <a href="/" class="logo-link"><img src="@/components/Images/ATDC_Logo.png" alt="Dental Clinic Logo"/></a>
     <div class="nav-links" :style="{ right: isMenuOpen ? '0' : '-250px' }">
       <i class="fa fa-times close-btn" @click="hideMenu"></i>
       <ul>
@@ -124,7 +124,7 @@
           <!-- Logo & Clinic Info -->
           <div class="footer-col footer-info">
             <div class="logo-container">
-              <img src="@/components/Images/ATDC_logo.png" alt="Aguila-Titular Dental Clinic Logo" class="footer-logo">
+              <img src="@/components/Images/ATDC_Logo.png" alt="Aguila-Titular Dental Clinic Logo" class="footer-logo">
               <img src="@/components/Images/ATDC_Logo3.png" alt="Aguila-Titular Dental Clinic Logo" class="footer-logo-text">
             </div>
             <div class="location-info">
