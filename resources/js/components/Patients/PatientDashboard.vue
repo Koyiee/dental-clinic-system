@@ -105,15 +105,27 @@
       </li>
       <li>
         <div class="profile-details" @click="confirmLogout">
-          <div class="profile-content">
-            <img src="@/components/Images/profile_1.jpg" alt="profile">
+            <div class="profile-content">
+              <img 
+                v-if="profilePicture" 
+                :src="`/storage/${profilePicture}`" 
+                alt="profile" 
+                class="profile-image" 
+                @error="handleImageError"
+              >
+              <img 
+                v-else 
+                src="../Images/profile_1.jpg" 
+                alt="profile" 
+                class="profile-image"
+              >
+            </div>
+            <div class="name-job">
+              <div class="profile_name">{{ fullName }}</div>
+              <div class="job">Patient</div>
+            </div>
+            <i class="bx bx-log-out"></i>
           </div>
-          <div class="name-job">
-            <div class="profile_name">{{ fullName }}</div>
-            <div class="job">Patient</div>
-          </div>
-          <i class="bx bx-log-out"></i>
-        </div>
       </li>
     </ul>
   </div>
