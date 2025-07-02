@@ -338,9 +338,14 @@ export default {
       type: String,
       required: true,
     },
+    profilePicture: { 
+      type: String,
+      default: null,
+    },
   },
   data() {
     return {
+      profilePicture: sessionStorage.getItem('user_profile_picture') || null,
       updatedAppointments: [],
       upcomingAppointments: [],
       recentAnnouncements: [],
@@ -379,6 +384,7 @@ export default {
   mounted() {
     this.setupSidebar();
     this.fetchAllData();
+    this.fetchPatientData();
     this.timeInterval = setInterval(() => {
       this.currentTimeValue = new Date();
     }, 1000);
