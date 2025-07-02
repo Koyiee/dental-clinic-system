@@ -160,7 +160,19 @@
             </div>
           </div>
           <div class="welcome-illustration">
-            <img src="@/components/Images/profile_1.jpg" alt="profile" class="profile-image">
+            <img 
+                v-if="profilePicture && profilePicture !== ''" 
+                :src="`/storage/${profilePicture}`" 
+                alt="profile" 
+                class="profile-image" 
+                @error="handleImageError"
+              >
+              <img 
+                v-else 
+                src="@/components/Images/profile_1.jpg" 
+                alt="profile" 
+                class="profile-image"
+              >
           </div>
         </div>
         
