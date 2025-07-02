@@ -1,7 +1,7 @@
 <template>
   <div class="sidebar close">
     <div class="logo-details">
-      <img src="@/components/Images/ATDC_logo.png" alt="" class="logo">
+      <img src="@/components/Images/ATDC_Logo.png" alt="" class="logo">
       <div class="logo_name"><img class="img2" src="@/components/Images/ATDC_Logo3.png" alt=""></div>
     </div>
     <ul class="nav-link">
@@ -493,7 +493,7 @@
 import axios from 'axios';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import logoImg from '@/components/Images/ATDC_logo.png';
+import logoImg from '@/components/Images/ATDC_Logo.png';
 import Swal from 'sweetalert2';
 
 export default {
