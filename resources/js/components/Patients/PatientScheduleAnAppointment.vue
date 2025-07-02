@@ -18,13 +18,13 @@
         </ul>
       </li>
       <li>
-      <a href="/">
+      <a href="/patientannouncements">
         <i class="bx bxs-megaphone"></i>
         <span class="link_name">Announcements</span>
       </a>
       <ul class="sub-menu blank">
           <li>
-            <a class="link_name" href="/">Announcements</a>
+            <a class="link_name" href="/patientannouncements">Announcements</a>
           </li>
       </ul>
     </li>
