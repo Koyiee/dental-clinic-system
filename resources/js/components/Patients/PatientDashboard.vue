@@ -407,6 +407,43 @@ export default {
     }
   },
   methods: {
+    async fetchPatientData() {
+      try {
+        const response = await axios.get('/api/patient-data');
+        if (response.data.success) {
+          this.profilePicture = response.data.patient.profilePicture;
+          console.log('Fetched Profile Picture:', this.profilePicture);
+        } else {
+          console.error('Failed to fetch patient data:', response.data.message);
+          Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Failed to fetch patient data. Please try again.',
+            showConfirmButton: false,
+            timer: 1500,
+            customClass: {
+              popup: 'sweetalert-theme',
+              title: 'sweetalert-title',
+              content: 'sweetalert-content',
+            },
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching patient data:', error);
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: 'Error fetching patient data. Please try again.',
+          showConfirmButton: false,
+          timer: 1500,
+          customClass: {
+            popup: 'sweetalert-theme',
+            title: 'sweetalert-title',
+            content: 'sweetalert-content',
+          },
+        });
+      }
+    },
     setupSidebar() {
       const arrows = document.querySelectorAll(".arrow");
       arrows.forEach((arrow) => {
@@ -421,7 +458,6 @@ export default {
       let sidebarBtn = document.querySelector(".bx-menu");
       sidebarBtn.addEventListener("click", () => {
         sidebar.classList.toggle("close");
-        // Handle mobile overlay
         const overlay = document.querySelector(".mobile-overlay");
         if (window.innerWidth <= 768) {
           overlay.classList.toggle("active");
@@ -450,7 +486,6 @@ export default {
         console.error('Error fetching updated appointments:', error);
       }
     },
-    
     async dismissNotification(appointmentId, index) {
       try {
         await axios.post(`/patient/appointments/${appointmentId}/mark-as-viewed`);
