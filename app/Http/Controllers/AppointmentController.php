@@ -616,6 +616,12 @@ class AppointmentController extends Controller
                 $patientEmail = $appointment->patient->user->Email;
                 $declineReason = $appointment->AppointmentStatus === 'Declined' ? $validated['declineReason'] : null;
 
+                // Explicitly calculate dentistName like in store method
+                $dentistName = $appointment->dentist && $appointment->dentist->user
+                    ? "Dr. {$appointment->dentist->user->FirstName} {$appointment->dentist->user->LastName}"
+                    : "Any Dentist";
+                ]);
+
                 $brevo = new BrevoMailService();
                 $html = view('emails.appointment_status', [
                     'appointment' => $appointment,
