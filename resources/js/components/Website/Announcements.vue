@@ -1,6 +1,6 @@
 <template>
   <nav>
-    <a href=""><img src="@/components/Images/ATDC_logo.png" alt=""></a>
+    <a href=""><img src="@/components/Images/ATDC_Logo.png" alt=""></a>
     <div class="nav-links" :style="{ right: isMenuOpen ? '0' : '-200px' }">
       <i class="fa fa-times" @click="hideMenu"></i>
       <ul>
@@ -167,7 +167,7 @@
         <!-- Logo & Clinic Info -->
         <div class="col-for-footer-1">
           <div class="logo-container">
-            <img src="@/components/Images/ATDC_logo.png" alt="Aguila-Titular Dental Clinic Logo">
+            <img src="@/components/Images/ATDC_Logo.png" alt="Aguila-Titular Dental Clinic Logo">
             <div class="logo-three">
             <img src="@/components/Images/ATDC_Logo3.png" alt="Aguila-Titular Dental Clinic Logo">
           </div>
