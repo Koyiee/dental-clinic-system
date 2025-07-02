@@ -2,7 +2,7 @@
   <div class="sidebar close">
     <!-- Sidebar Navigation -->
     <div class="logo-details">
-      <img src="@/components/Images/ATDC_logo.png" alt="" class="logo">
+      <img src="@/components/Images/ATDC_Logo.png" alt="" class="logo">
       <div class="logo_name"><img class="img2" src="@/components/Images/ATDC_Logo3.png" alt=""></div>
     </div>
     <ul class="nav-link">
