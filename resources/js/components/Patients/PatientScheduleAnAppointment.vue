@@ -107,7 +107,19 @@
         <li>
           <div class="profile-details" @click="confirmLogout">
             <div class="profile-content">
-              <img src="@/components/Images/profile_1.jpg" alt="profile">
+              <img 
+                v-if="profilePicture" 
+                :src="`/storage/${profilePicture}`" 
+                alt="profile" 
+                class="profile-image" 
+                @error="handleImageError"
+              >
+              <img 
+                v-else 
+                src="../Images/profile_1.jpg" 
+                alt="profile" 
+                class="profile-image"
+              >
             </div>
             <div class="name-job">
               <div class="profile_name">{{ fullName }}</div>
@@ -1100,6 +1112,7 @@ export default defineComponent({
   },
   data() {
     return {
+      profilePicture: sessionStorage.getItem('user_profile_picture') || this.profilePicture,
       currentFormStep: 'consent',
       consentSections: [
         {
@@ -1293,6 +1306,10 @@ export default defineComponent({
       type: String,
       required: true,
     },
+    profilePicture: {
+      type: String,
+      default: null,
+    },
   },
   computed: {
     fullName() {
@@ -1316,6 +1333,43 @@ export default defineComponent({
     await this.fetchBlockedDates();
   },
   methods: {
+      async fetchPatientData() {
+    try {
+      const response = await axios.get('/api/patient-data');
+      if (response.data.success) {
+        this.profilePicture = response.data.patient.profilePicture;
+        console.log('Fetched Profile Picture:', this.profilePicture);
+      } else {
+        console.error('Failed to fetch patient data:', response.data.message);
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: 'Failed to fetch patient data. Please try again.',
+          showConfirmButton: false,
+          timer: 1500,
+          customClass: {
+            popup: 'sweetalert-theme',
+            title: 'sweetalert-title',
+            content: 'sweetalert-content',
+          },
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching patient data:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'Error fetching patient data. Please try again.',
+        showConfirmButton: false,
+        timer: 1500,
+        customClass: {
+          popup: 'sweetalert-theme',
+          title: 'sweetalert-title',
+          content: 'sweetalert-content',
+        },
+      });
+    }
+  },
       async confirmLogout() {
       const result = await Swal.fire({
         title: 'Are you sure?',
