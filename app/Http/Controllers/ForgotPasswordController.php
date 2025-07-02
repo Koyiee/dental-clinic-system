@@ -262,14 +262,6 @@ class ForgotPasswordController extends Controller
     }
 
     $request->validate([
-        'current_password' => [
-            'required',
-            function ($attribute, $value, $fail) use ($account) {
-                if (!Hash::check($value, $account->Password)) {
-                    $fail('The current password is incorrect.');
-                }
-            },
-        ],
         'new_password' => [
             'required',
             'min:8',
@@ -290,11 +282,10 @@ class ForgotPasswordController extends Controller
         ],
         'confirm_password' => 'required|same:new_password',
     ], [
-        'current_password.required' => 'Current password is required.',
-        'new_password.required' => 'New password is required.',
-        'new_password.min' => 'New password must be at least 8 characters.',
-        'new_password.regex' => 'New password must include at least one uppercase letter, lowercase letter, number, and special character.',
-        'confirm_password.required' => 'Confirm password is required.',
+        'new_password.required' => 'Password is required.',
+        'new_password.min' => 'Password must be at least 8 characters.',
+        'new_password.regex' => 'Password must include at least one uppercase letter, lowercase letter, number, and special character.',
+        'confirm_password.required' => 'Confirm Password is required.',
         'confirm_password.same' => 'Passwords do not match.',
     ]);
 
@@ -320,7 +311,7 @@ class ForgotPasswordController extends Controller
 
         DB::commit();
         return response()->json([
-            'success' => true, // Changed to boolean to align with resetPassword
+            'success' => true,
             'message' => 'Password updated successfully!'
         ]);
     } catch (\Exception $e) {
@@ -337,64 +328,54 @@ class ForgotPasswordController extends Controller
 }
 
     public function updateDentistPassword(Request $request)
-{
-    $user = Auth::user();
+    {
+        $user = Auth::user();
 
-    $account = $user->userAccount;
-    if (!$account) {
-        return response()->json([
- Ascending: [success] => false, [message] => 'Account not found.'], 404);
-    }
+        $account = $user->userAccount;
+        if (!$account) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Account not found.',
+            ], 404);
+        }
 
-    if ($account->UserType !== 'Dentist') {
-        return response()->json([
-            'success' => false,
-            'message' => 'This action is only allowed for dentist accounts.'
-        ], 403);
-    }
+        if ($account->UserType !== 'Dentist') {
+            return response()->json([
+                'error' => 'This action is only allowed for dentist accounts.'
+            ], 403);
+        }
 
-    $request->validate([
-        'current_password' => [
-            'required',
-            function ($attribute, $value, $fail) use ($account) {
-                if (!Hash::check($value, $account->Password)) {
-                    $fail('The current password is incorrect.');
-                }
-            },
-        ],
-        'new_password' => [
-            'required',
-            'min:8',
-            'regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/',
-            function ($attribute, $value, $fail) use ($account) {
-                if (Hash::check($value, $account->Password)) {
-                    $fail('The new password cannot be the same as the current password.');
-                }
-                if ($account->settings_previous_password) {
-                    $previousPasswords = explode(',', $account->settings_previous_password);
-                    foreach ($previousPasswords as $prevPass) {
-                        if (Hash::check($value, $prevPass)) {
-                            $fail('The new password cannot be the same as a previous password.');
+        $request->validate([
+            'new_password' => [
+                'required',
+                'min:8',
+                'regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/',
+                function ($attribute, $value, $fail) use ($account) {
+                    if (Hash::check($value, $account->Password)) {
+                        $fail('The new password cannot be the same as the current password.');
+                    }
+                    if ($account->settings_previous_password) {
+                        $previousPasswords = explode(',', $account->settings_previous_password);
+                        foreach ($previousPasswords as $prevPass) {
+                            if (Hash::check($value, $prevPass)) {
+                                $fail('The new password cannot be the same as a previous password.');
+                            }
                         }
                     }
-                }
-            },
-        ],
-        'confirm_password' => 'required|same:new_password',
-    ], [
-        'current_password.required' => 'Current password is required.',
-        'new_password.required' => 'New password is required.',
-        'new_password.min' => 'New password must be at least 8 characters.',
-        'new_password.regex' => 'New password must include at least one uppercase letter, lowercase letter, number, and special character.',
-        'confirm_password.required' => 'Confirm password is required.',
-        'confirm_password.same' => 'Passwords do not match.',
-    ]);
+                },
+            ],
+            'confirm_password' => 'required|same:new_password',
+        ], [
+            'new_password.required' => 'Password is required.',
+            'new_password.min' => 'Password must be at least 8 characters.',
+            'new_password.regex' => 'Password must include at least one uppercase letter, lowercase letter, number, and special character.',
+            'confirm_password.required' => 'Confirm Password is required.',
+            'confirm_password.same' => 'Passwords do not match.',
+        ]);
 
-    DB::beginTransaction();
-    try {
         $previousPassword = $account->Password;
-        $account->Password = Hash::make($request->new_password); // Hash the new password
-        $account->settings_password_change_count = ($account->settings_password_change_count ?? 0) + 1;
+        $account->Password = $request->new_password;
+        $account->settings_password_change_count = $account->settings_password_change_count + 1;
 
         if ($account->settings_previous_password) {
             $account->settings_previous_password = $account->settings_previous_password . ',' . $previousPassword;
@@ -410,179 +391,58 @@ class ForgotPasswordController extends Controller
             "Dentist {$user->FirstName} {$user->LastName} changed their password via settings."
         ));
 
-        DB::commit();
-        return response()->json([
-            'success' => true,
-            'message' => 'Password updated successfully!'
-        ]);
-    } catch (\Exception $e) {
-        DB::rollBack();
-        Log::error('Error updating dentist password: ' . $e->getMessage(), [
-            'user_id' => $user->UserID,
-            'trace' => $e->getTraceAsString(),
-        ]);
-        return response()->json([
-            'success' => false,
-            'message' => 'An error occurred while updating your password: ' . $e->getMessage(),
-        ], 500);
+        return response()->json(['success' => 'Password updated successfully!']);
     }
-}
-
-    public function updateHrPassword(Request $request)
-{
-    $user = Auth::user();
-
-    $account = $user->userAccount;
-    if (!$account) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Account not found.',
-        ], 404);
-    }
-
-    if ($account->UserType !== 'HRAdmin') {
-        return response()->json([
-            'success' => false,
-            'message' => 'This action is only allowed for HR Admin accounts.'
-        ], 403);
-    }
-
-    $request->validate([
-        'current_password' => [
-            'required',
-            function ($attribute, $value, $fail) use ($account) {
-                if (!Hash::check($value, $account->Password)) {
-                    $fail('The current password is incorrect.');
-                }
-            },
-        ],
-        'new_password' => [
-            'required',
-            'min:8',
-            'regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/',
-            function ($attribute, $value, $fail) use ($account) {
-                if (Hash::check($value, $account->Password)) {
-                    $fail('The new password cannot be the same as the current password.');
-                }
-                if ($account->settings_previous_password) {
-                    $previousPasswords = explode(',', $account->settings_previous_password);
-                    foreach ($previousPasswords as $prevPass) {
-                        if (Hash::check($value, $prevPass)) {
-                            $fail('The new password cannot be the same as a previous password.');
-                        }
-                    }
-                }
-            },
-        ],
-        'confirm_password' => 'required|same:new_password',
-    ], [
-        'current_password.required' => 'Current password is required.',
-        'new_password.required' => 'New password is required.',
-        'new_password.min' => 'New password must be at least 8 characters.',
-        'new_password.regex' => 'New password must include at least one uppercase letter, lowercase letter, number, and special character.',
-        'confirm_password.required' => 'Confirm password is required.',
-        'confirm_password.same' => 'Passwords do not match.',
-    ]);
-
-    DB::beginTransaction();
-    try {
-        $previousPassword = $account->Password;
-        $account->Password = Hash::make($request->new_password); // Hash the new password
-        $account->settings_password_change_count = ($account->settings_password_change_count ?? 0) + 1;
-
-        if ($account->settings_previous_password) {
-            $account->settings_previous_password = $account->settings_previous_password . ',' . $previousPassword;
-        } else {
-            $account->settings_previous_password = $previousPassword;
-        }
-
-        $account->save();
-
-        event(new UserActionOccurred(
-            $user->UserID,
-            'Password Changed',
-            "HRAdmin {$user->FirstName} {$user->LastName} changed their password via settings."
-        ));
-
-        DB::commit();
-        return response()->json([
-            'success' => true,
-            'message' => 'Password updated successfully!'
-        ]);
-    } catch (\Exception $e) {
-        DB::rollBack();
-        Log::error('Error updating HR admin password: ' . $e->getMessage(), [
-            'user_id' => $user->UserID,
-            'trace' => $e->getTraceAsString(),
-        ]);
-        return response()->json([
-            'success' => false,
-            'message' => 'An error occurred while updating your password: ' . $e->getMessage(),
-        ], 500);
-    }
-}
 
     public function updateOwnerPassword(Request $request)
-{
-    $user = Auth::user();
+    {
+        $user = Auth::user();
 
-    $account = $user->userAccount;
-    if (!$account) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Account not found.',
-        ], 404);
-    }
+        $account = $user->userAccount;
+        if (!$account) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Account not found.',
+            ], 404);
+        }
 
-    if ($account->UserType !== 'Owner') {
-        return response()->json([
-            'success' => false,
-            'message' => 'This action is only allowed for owner accounts.'
-        ], 403);
-    }
+        if ($account->UserType !== 'Owner') {
+            return response()->json([
+                'error' => 'This action is only allowed for owner accounts.'
+            ], 403);
+        }
 
-    $request->validate([
-        'current_password' => [
-            'required',
-            function ($attribute, $value, $fail) use ($account) {
-                if (!Hash::check($value, $account->Password)) {
-                    $fail('The current password is incorrect.');
-                }
-            },
-        ],
-        'new_password' => [
-            'required',
-            'min:8',
-            'regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/',
-            function ($attribute, $value, $fail) use ($account) {
-                if (Hash::check($value, $account->Password)) {
-                    $fail('The new password cannot be the same as the current password.');
-                }
-                if ($account->settings_previous_password) {
-                    $previousPasswords = explode(',', $account->settings_previous_password);
-                    foreach ($previousPasswords as $prevPass) {
-                        if (Hash::check($value, $prevPass)) {
-                            $fail('The new password cannot be the same as a previous password.');
+        $request->validate([
+            'new_password' => [
+                'required',
+                'min:8',
+                'regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/',
+                function ($attribute, $value, $fail) use ($account) {
+                    if (Hash::check($value, $account->Password)) {
+                        $fail('The new password cannot be the same as the current password.');
+                    }
+                    if ($account->settings_previous_password) {
+                        $previousPasswords = explode(',', $account->settings_previous_password);
+                        foreach ($previousPasswords as $prevPass) {
+                            if (Hash::check($value, $prevPass)) {
+                                $fail('The new password cannot be the same as a previous password.');
+                            }
                         }
                     }
-                }
-            },
-        ],
-        'confirm_password' => 'required|same:new_password',
-    ], [
-        'current_password.required' => 'Current password is required.',
-        'new_password.required' => 'New password is required.',
-        'new_password.min' => 'New password must be at least 8 characters.',
-        'new_password.regex' => 'New password must include at least one uppercase letter, lowercase letter, number, and special character.',
-        'confirm_password.required' => 'Confirm password is required.',
-        'confirm_password.same' => 'Passwords do not match.',
-    ]);
+                },
+            ],
+            'confirm_password' => 'required|same:new_password',
+        ], [
+            'new_password.required' => 'Password is required.',
+            'new_password.min' => 'Password must be at least 8 characters.',
+            'new_password.regex' => 'Password must include at least one uppercase letter, lowercase letter, number, and special character.',
+            'confirm_password.required' => 'Confirm Password is required.',
+            'confirm_password.same' => 'Passwords do not match.',
+        ]);
 
-    DB::beginTransaction();
-    try {
         $previousPassword = $account->Password;
-        $account->Password = Hash::make($request->new_password); // Hash the new password
-        $account->settings_password_change_count = ($account->settings_password_change_count ?? 0) + 1;
+        $account->Password = $request->new_password;
+        $account->settings_password_change_count = $account->settings_password_change_count + 1;
 
         if ($account->settings_previous_password) {
             $account->settings_previous_password = $account->settings_previous_password . ',' . $previousPassword;
@@ -598,21 +458,73 @@ class ForgotPasswordController extends Controller
             "Owner {$user->FirstName} {$user->LastName} changed their password via settings."
         ));
 
-        DB::commit();
-        return response()->json([
-            'success' => true,
-            'message' => 'Password updated successfully!'
-        ]);
-    } catch (\Exception $e) {
-        DB::rollBack();
-        Log::error('Error updating owner password: ' . $e->getMessage(), [
-            'user_id' => $user->UserID,
-            'trace' => $e->getTraceAsString(),
-        ]);
-        return response()->json([
-            'success' => false,
-            'message' => 'An error occurred while updating your password: ' . $e->getMessage(),
-        ], 500);
+        return response()->json(['success' => 'Password updated successfully!']);
     }
-}
+
+    public function updateHrPassword(Request $request)
+    {
+        $user = Auth::user();
+
+        $account = $user->userAccount;
+        if (!$account) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Account not found.',
+            ], 404);
+        }
+
+        if ($account->UserType !== 'HRAdmin') {
+            return response()->json([
+                'error' => 'This action is only allowed for HR Admin accounts.'
+            ], 403);
+        }
+
+        $request->validate([
+            'new_password' => [
+                'required',
+                'min:8',
+                'regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/',
+                function ($attribute, $value, $fail) use ($account) {
+                    if (Hash::check($value, $account->Password)) {
+                        $fail('The new password cannot be the same as the current password.');
+                    }
+                    if ($account->settings_previous_password) {
+                        $previousPasswords = explode(',', $account->settings_previous_password);
+                        foreach ($previousPasswords as $prevPass) {
+                            if (Hash::check($value, $prevPass)) {
+                                $fail('The new password cannot be the same as a previous password.');
+                            }
+                        }
+                    }
+                },
+            ],
+            'confirm_password' => 'required|same:new_password',
+        ], [
+            'new_password.required' => 'Password is required.',
+            'new_password.min' => 'Password must be at least 8 characters.',
+            'new_password.regex' => 'Password must include at least one uppercase letter, lowercase letter, number, and special character.',
+            'confirm_password.required' => 'Confirm Password is required.',
+            'confirm_password.same' => 'Passwords do not match.',
+        ]);
+
+        $previousPassword = $account->Password;
+        $account->Password = $request->new_password;
+        $account->settings_password_change_count = $account->settings_password_change_count + 1;
+
+        if ($account->settings_previous_password) {
+            $account->settings_previous_password = $account->settings_previous_password . ',' . $previousPassword;
+        } else {
+            $account->settings_previous_password = $previousPassword;
+        }
+
+        $account->save();
+
+        event(new UserActionOccurred(
+            $user->UserID,
+            'Password Changed',
+            "HRAdmin {$user->FirstName} {$user->LastName} changed their password via settings."
+        ));
+
+        return response()->json(['success' => 'Password updated successfully!']);
+    }
 }
