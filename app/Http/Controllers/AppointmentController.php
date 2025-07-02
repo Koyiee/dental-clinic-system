@@ -494,7 +494,7 @@ class AppointmentController extends Controller
             'confirmSave' => 'sometimes|boolean', // New parameter for confirmation
         ]);
         
-        $appointment = Appointment::with('servicesAvailed.service', 'patient.user')->findOrFail($id);
+        $appointment = Appointment::with(['servicesAvailed.service', 'patient.user', 'dentist.user'])->findOrFail($id);
         $oldStatus = $appointment->AppointmentStatus;
         
         // Prevent edits if already Completed
@@ -633,6 +633,7 @@ class AppointmentController extends Controller
                     'AppointmentID' => $appointment->AppointmentID,
                     'PatientEmail' => $patientEmail,
                     'Status' => $appointment->AppointmentStatus,
+                    'dentistName' => $dentistName,
                     'DeclineReason' => $declineReason,
                 ]);
             } catch (\Exception $e) {
