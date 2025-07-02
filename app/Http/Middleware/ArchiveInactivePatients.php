@@ -13,7 +13,7 @@ class ArchiveInactivePatients
     public function handle(Request $request, Closure $next)
     {
         try {
-            $inactivityThreshold = Carbon::now()->subSeconds(10);
+            $inactivityThreshold = Carbon::now()->subMonths(6);
             $patientsToArchive = UserAccount::where('UserType', 'Patient')
                 ->where('AccountStatus', 'active')
                 ->where('last_login_at', '<', $inactivityThreshold)
