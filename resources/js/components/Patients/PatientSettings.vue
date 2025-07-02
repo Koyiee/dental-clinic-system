@@ -15,15 +15,27 @@
       <li><a href="/patientsettings"><i class="bx bx-cog"></i><span class="link_name">Settings</span></a><ul class="sub-menu blank"><li><a class="link_name" href="/patientsettings">Settings</a></li></ul></li>
       <li>
         <div class="profile-details" @click="confirmLogout">
-          <div class="profile-content">
-            <img src="@/components/Images/profile_1.jpg" alt="profile">
+            <div class="profile-content">
+              <img 
+                v-if="profilePicture" 
+                :src="`/storage/${profilePicture}`" 
+                alt="profile" 
+                class="profile-image" 
+                @error="handleImageError"
+              >
+              <img 
+                v-else 
+                src="../Images/profile_1.jpg" 
+                alt="profile" 
+                class="profile-image"
+              >
+            </div>
+            <div class="name-job">
+              <div class="profile_name">{{ fullName }}</div>
+              <div class="job">Patient</div>
+            </div>
+            <i class="bx bx-log-out"></i>
           </div>
-          <div class="name-job">
-            <div class="profile_name">{{ fullName }}</div>
-            <div class="job">Patient</div>
-          </div>
-          <i class="bx bx-log-out"></i>
-        </div>
       </li>
     </ul>
   </div>
@@ -186,9 +198,14 @@ export default {
       type: String,
       required: true,
     },
+    profilePicture: {
+      type: String,
+      default: null,
+    },
   },
   data() {
     return {
+      profilePicture: sessionStorage.getItem('user_profile_picture') || this.profilePicture,
       form: {
         new_password: '',
         confirm_password: '',
@@ -259,6 +276,43 @@ export default {
     }
   },
   methods: {
+      async fetchPatientData() {
+    try {
+      const response = await axios.get('/api/patient-data');
+      if (response.data.success) {
+        this.profilePicture = response.data.patient.profilePicture;
+        console.log('Fetched Profile Picture:', this.profilePicture);
+      } else {
+        console.error('Failed to fetch patient data:', response.data.message);
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: 'Failed to fetch patient data. Please try again.',
+          showConfirmButton: false,
+          timer: 1500,
+          customClass: {
+            popup: 'sweetalert-theme',
+            title: 'sweetalert-title',
+            content: 'sweetalert-content',
+          },
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching patient data:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'Error fetching patient data. Please try again.',
+        showConfirmButton: false,
+        timer: 1500,
+        customClass: {
+          popup: 'sweetalert-theme',
+          title: 'sweetalert-title',
+          content: 'sweetalert-content',
+        },
+      });
+    }
+  },
     closeMobileSidebar() {
       const sidebar = document.querySelector(".sidebar");
       const overlay = document.querySelector(".mobile-overlay");
