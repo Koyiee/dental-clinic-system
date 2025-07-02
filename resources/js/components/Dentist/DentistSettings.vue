@@ -398,52 +398,73 @@ export default {
       this.isConfirmPasswordValid = true;
     },
     async changePassword() {
-      if (this.isSubmitting) {
+    if (this.isSubmitting) {
         return;
-      }
+    }
 
-      this.validateNewPassword();
-      this.validateConfirmPassword();
+    this.validateNewPassword();
+    this.validateConfirmPassword();
 
-      if (this.errors.new_password || this.errors.confirm_password) {
+    if (this.errors.new_password || this.errors.confirm_password) {
         return;
-      }
+    }
 
-      this.isSubmitting = true;
-      try {
-        const response = await axios.post('/dentist/update-password', this.form);
-        this.showSuccessModal = true;
-
-        this.form.new_password = '';
-        this.form.confirm_password = '';
-        this.isNewPasswordValid = false;
-        this.isConfirmPasswordValid = false;
-        this.errors.new_password = '';
-        this.errors.confirm_password = '';
-        this.hasMinLength = false;
-        this.hasUpperCase = false;
-        this.hasLowerCase = false;
-        this.hasNumber = false;
-        this.hasSpecialChar = false;
-      } catch (error) {
-        if (error.response && error.response.status === 422) {
-          const errors = error.response.data.errors;
-          if (errors.new_password) {
-            this.errors.new_password = errors.new_password[0];
+    this.isSubmitting = true;
+    try {
+        const response = await axios.post('/dentist/update-password', {
+            new_password: this.form.new_password,
+            confirm_password: this.form.confirm_password,
+        });
+        if (response.data.success) {
+            await Swal.fire({
+                title: 'Success',
+                text: 'Password updated successfully! Please log out and log in with your new password.',
+                icon: 'success',
+                confirmButtonColor: '#06693A',
+            });
+            this.form.new_password = '';
+            this.form.confirm_password = '';
             this.isNewPasswordValid = false;
-          }
-          if (errors.confirm_password) {
-            this.errors.confirm_password = errors.confirm_password[0];
             this.isConfirmPasswordValid = false;
-          }
+            this.errors.new_password = '';
+            this.errors.confirm_password = '';
+            this.hasMinLength = false;
+            this.hasUpperCase = false;
+            this.hasLowerCase = false;
+            this.hasNumber = false;
+            this.hasSpecialChar = false;
         } else {
-          console.error('Error changing password:', error);
-          alert('An error occurred while changing your password: ' + (error.response?.data?.message || error.message));
+            await Swal.fire({
+                title: 'Error',
+                text: response.data.message || 'An error occurred while updating your password.',
+                icon: 'error',
+                confirmButtonColor: '#06693A',
+            });
         }
-      } finally {
+    } catch (error) {
+        if (error.response && error.response.status === 422) {
+            const errors = error.response.data.errors;
+            if (errors.new_password) {
+                this.errors.new_password = errors.new_password[0];
+                this.isNewPasswordValid = false;
+            }
+            if (errors.confirm_password) {
+                this.errors.confirm_password = errors.confirm_password[0];
+                this.isConfirmPasswordValid = false;
+            }
+        } else {
+            console.error('Error changing password:', error);
+            await Swal.fire({
+                title: 'Error',
+                text: error.response?.data?.message || 'An error occurred while updating your password.',
+                icon: 'error',
+                confirmButtonColor: '#06693A',
+            });
+        }
+    } finally {
         this.isSubmitting = false;
-      }
-    },
+    }
+},
     async confirmLogout() {
       const result = await Swal.fire({
         title: 'Are you sure?',
