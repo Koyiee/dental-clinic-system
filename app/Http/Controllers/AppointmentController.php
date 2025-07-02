@@ -609,47 +609,53 @@ class AppointmentController extends Controller
             ]);
         }
         
-        // Email notification logic (unchanged)
-        if (!$requiresConfirmation && $oldStatus !== $appointment->AppointmentStatus && 
-            in_array($appointment->AppointmentStatus, ['Confirmed', 'Declined'])) {
-            try {
-                $patientEmail = $appointment->patient->user->Email;
-                $declineReason = $appointment->AppointmentStatus === 'Declined' ? $validated['declineReason'] : null;
+        // Email notification logic
+    if (!$requiresConfirmation && $oldStatus !== $appointment->AppointmentStatus && 
+        in_array($appointment->AppointmentStatus, ['Confirmed', 'Declined'])) {
+        try {
+            $patientEmail = $appointment->patient->user->Email;
+            $declineReason = $appointment->AppointmentStatus === 'Declined' ? $validated['declineReason'] : null;
 
-                // Explicitly calculate dentistName like in store method
-                $dentistName = $appointment->dentist && $appointment->dentist->user
-                    ? "Dr. {$appointment->dentist->user->FirstName} {$appointment->dentist->user->LastName}"
-                    : "Any Dentist";
-                ]);
+            // Explicitly calculate dentistName like in store method
+            $dentistName = $appointment->dentist && $appointment->dentist->user
+                ? "Dr. {$appointment->dentist->user->FirstName} {$appointment->dentist->user->LastName}"
+                : "Any Dentist";
 
-                $brevo = new BrevoMailService();
-                $html = view('emails.appointment_status', [
-                    'appointment' => $appointment,
-                    'status' => $appointment->AppointmentStatus,
-                    'declineReason' => $declineReason
-                ])->render();
+            Log::info("Preparing to send email", [
+                'AppointmentID' => $appointment->AppointmentID,
+                'DentistID' => $appointment->DentistID,
+                'DentistName' => $dentistName,
+            ]);
 
-                $brevo->sendEmail(
-                    $patientEmail,
-                    'Appointment Status Updated',
-                    $html
-                );
+            $brevo = new BrevoMailService();
+            $html = view('emails.appointment_status', [
+                'appointment' => $appointment,
+                'status' => $appointment->AppointmentStatus,
+                'dentistName' => $dentistName, // Pass explicitly
+                'declineReason' => $declineReason
+            ])->render();
 
-                Log::info("Email sent to patient", [
-                    'AppointmentID' => $appointment->AppointmentID,
-                    'PatientEmail' => $patientEmail,
-                    'Status' => $appointment->AppointmentStatus,
-                    'dentistName' => $dentistName,
-                    'DeclineReason' => $declineReason,
-                ]);
-            } catch (\Exception $e) {
-                Log::error("Failed to send email notification: " . $e->getMessage(), [
-                    'AppointmentID' => $appointment->AppointmentID,
-                    'PatientEmail' => $patientEmail ?? 'N/A',
-                    'Stack' => $e->getTraceAsString(),
-                ]);
-            }
+            $brevo->sendEmail(
+                $patientEmail,
+                'Appointment Status Updated',
+                $html
+            );
+
+            Log::info("Email sent to patient", [
+                'AppointmentID' => $appointment->AppointmentID,
+                'PatientEmail' => $patientEmail,
+                'Status' => $appointment->AppointmentStatus,
+                'DentistName' => $dentistName,
+                'DeclineReason' => $declineReason,
+            ]);
+        } catch (\Exception $e) {
+            Log::error("Failed to send email notification: " . $e->getMessage(), [
+                'AppointmentID' => $appointment->AppointmentID,
+                'PatientEmail' => $patientEmail ?? 'N/A',
+                'Stack' => $e->getTraceAsString(),
+            ]);
         }
+    }
         
         // Billing logic (unchanged)
         if (!$requiresConfirmation && strtolower($oldStatus) !== 'completed' && 
