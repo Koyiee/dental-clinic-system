@@ -1425,374 +1425,290 @@ if (abs($newCost - $originalCost) > 0.01) {
 
     // Transaction Date/Time Based
     public function getPatientLedger(Request $request, $patientId = null, $returnBalanceOnly = false)
-{
-    Log::info("Fetching ledger for PatientID: $patientId");
+    {
+        Log::info("Fetching ledger for PatientID: $patientId");
 
-    // If no patientId is provided, use the authenticated patient's ID
-    if (!$patientId) {
-        $user = Auth::user();
-        if (!$user) {
-            Log::error("No authenticated user found");
-            return response()->json(['message' => 'Unauthorized: No user authenticated'], 401);
+        // If no patientId is provided, use the authenticated patient's ID
+        if (!$patientId) {
+            $user = Auth::user();
+            if (!$user) {
+                Log::error("No authenticated user found");
+                return response()->json(['message' => 'Unauthorized: No user authenticated'], 401);
+            }
+
+            $patient = $user->patient;
+            if (!$patient) {
+                Log::error("No patient profile found for user", ['user_id' => $user->UserID]);
+                return response()->json(['message' => 'Unauthorized: No patient profile found'], 403);
+            }
+
+            $patientId = $patient->PatientID;
+            Log::info("Using authenticated patient ID", ['patient_id' => $patientId]);
         }
 
-        $patient = $user->patient;
-        if (!$patient) {
-            Log::error("No patient profile found for user", ['user_id' => $user->UserID]);
-            return response()->json(['message' => 'Unauthorized: No patient profile found'], 403);
-        }
+        try {
+            // Fetch all completed appointments for the patient
+            $appointments = Appointment::where('PatientID', $patientId)
+                ->where('AppointmentStatus', 'Completed')
+                ->with([
+                    'servicesAvailed.service',
+                    'servicesAvailed.treatmentProgress',
+                    'billing.payments.paymentMethod'
+                ])
+                ->get();
 
-        $patientId = $patient->PatientID;
-        Log::info("Using authenticated patient ID", ['patient_id' => $patientId]);
-    }
+            // Fetch all treatment progress records for the patient to track multi-visit treatments
+            $treatmentProgresses = TreatmentProgress::where('PatientID', $patientId)
+                ->get()
+                ->keyBy('TreatmentProgressID');
 
-    try {
-        // Fetch all completed appointments for the patient
-        $appointments = Appointment::where('PatientID', $patientId)
-            ->where('AppointmentStatus', 'Completed')
-            ->with([
-                'servicesAvailed.service',
-                'servicesAvailed.treatmentProgress',
-                'billing.payments.paymentMethod'
-            ])
-            ->get();
+            // Fetch standalone payments (BillingID is null) for the patient
+            $standalonePayments = Payment::where('PatientID', $patientId)
+                ->whereNull('BillingID')
+                ->with('paymentMethod')
+                ->get();
 
-        // Fetch all treatment progress records for the patient to track multi-visit treatments
-        $treatmentProgresses = TreatmentProgress::where('PatientID', $patientId)
-            ->get()
-            ->keyBy('TreatmentProgressID');
+            $ledgerEntries = [];
+            $runningBalance = 0;
+            $processedTreatments = []; // Track which multi-visit treatments have been debited
 
-        // Fetch standalone payments (BillingID is null) for the patient
-        $standalonePayments = Payment::where('PatientID', $patientId)
-            ->whereNull('BillingID')
-            ->with('paymentMethod')
-            ->get();
+            // Process each completed appointment
+            foreach ($appointments as $appointment) {
+                $baseTransactionDate = $appointment->updated_at
+                    ? $appointment->updated_at->toDateTimeString()
+                    : now()->toDateTimeString();
 
-        $ledgerEntries = [];
-        $runningBalance = 0;
-        $processedTreatments = []; // Track which multi-visit treatments have been debited
+                Log::info("Using updated_at as base transaction date for completed appointment", [
+                    'AppointmentID' => $appointment->AppointmentID,
+                    'BaseTransactionDate' => $baseTransactionDate,
+                ]);
 
-        // Process each completed appointment
-        foreach ($appointments as $appointment) {
-            $baseTransactionDate = $appointment->updated_at
-                ? $appointment->updated_at->toDateTimeString()
-                : now()->toDateTimeString();
+                $servicesAvailed = $appointment->servicesAvailed;
 
-            Log::info("Using updated_at as base transaction date for completed appointment", [
-                'AppointmentID' => $appointment->AppointmentID,
-                'BaseTransactionDate' => $baseTransactionDate,
-            ]);
+                foreach ($servicesAvailed as $serviceAvailed) {
+                    if (!$serviceAvailed->service) {
+                        Log::warning("Skipping service availed due to missing service", [
+                            'ServiceAvailedID' => $serviceAvailed->ServiceAvailedID,
+                        ]);
+                        continue;
+                    }
 
-            $servicesAvailed = $appointment->servicesAvailed;
-            $hasMultiVisitService = false;
+                    if ($serviceAvailed->service->IsMultiVisit) {
+                        if (!$serviceAvailed->treatmentProgress) {
+                            continue;
+                        }
+                        $treatmentProgress = $serviceAvailed->treatmentProgress;
+                        $treatmentProgressId = $treatmentProgress->TreatmentProgressID;
 
-            foreach ($servicesAvailed as $serviceAvailed) {
-                if (!$serviceAvailed->service) {
-                    Log::warning("Skipping service availed due to missing service", [
-                        'ServiceAvailedID' => $serviceAvailed->ServiceAvailedID,
-                    ]);
-                    continue;
+                        // Only record debit when a payment is associated with this service
+                        $paymentExists = $appointment->billing && $appointment->billing->payments->isNotEmpty();
+                        $debitAmount = $paymentExists ? ($serviceAvailed->UpdatedPrice ?? $serviceAvailed->service->Cost) : 0;
+
+                        if (!isset($processedTreatments[$treatmentProgressId]) || $treatmentProgress->VisitCount == 1) {
+                            $ledgerEntries[] = [
+                                'Service' => $serviceAvailed->service->ServiceName . ' (Visit ' . $treatmentProgress->VisitCount . ')',
+                                'PaymentMethod' => null,
+                                'TransactionDate' => $baseTransactionDate,
+                                'Reference' => 'Appointment #' . $appointment->AppointmentID . ' (Treatment #' . $treatmentProgressId . ')',
+                                'Debit' => floatval($debitAmount),
+                                'Credit' => 0,
+                                'Balance' => $runningBalance += floatval($debitAmount),
+                                'IsStandalonePayment' => false,
+                                'TreatmentProgressID' => $treatmentProgressId,
+                                'Remarks' => $appointment->billing ? ($appointment->billing->Remarks ?? '') : '',
+                            ];
+                        }
+
+                        $processedTreatments[$treatmentProgressId] = [
+                            'ServiceID' => $serviceAvailed->service->ServiceID,
+                            'Status' => $treatmentProgress->Status,
+                        ];
+                    } else {
+                        // Only record debit when a payment is associated with this service
+                        $paymentExists = $appointment->billing && $appointment->billing->payments->isNotEmpty();
+                        $debitAmount = $paymentExists ? ($serviceAvailed->UpdatedPrice ?? $serviceAvailed->service->Cost) : 0;
+
+                        $ledgerEntries[] = [
+                            'Service' => $serviceAvailed->service->ServiceName,
+                            'PaymentMethod' => null,
+                            'TransactionDate' => $baseTransactionDate,
+                            'Reference' => 'Appointment #' . $appointment->AppointmentID,
+                            'Debit' => floatval($debitAmount),
+                            'Credit' => 0,
+                            'Balance' => $runningBalance += floatval($debitAmount),
+                            'IsStandalonePayment' => false,
+                            'Remarks' => $appointment->billing ? ($appointment->billing->Remarks ?? '') : '',
+                        ];
+                    }
                 }
 
-                $serviceCost = is_numeric($serviceAvailed->service->Cost) ? floatval($serviceAvailed->service->Cost) : 0;
-                if ($serviceAvailed->service->IsMultiVisit) {
-                    $hasMultiVisitService = true;
+                if ($appointment->billing) {
+                    $billing = $appointment->billing;
+                    $billingDate = $billing->updated_at
+                        ? $billing->updated_at->toDateTimeString()
+                        : $baseTransactionDate;
+                    $transactionDate = strtotime($billingDate) > strtotime($baseTransactionDate)
+                        ? $billingDate
+                        : $baseTransactionDate;
+
+                    $discount = floatval($billing->Discount ?? 0);
+
+                    if ($discount > 0) {
+                        $ledgerEntries[] = [
+                            'Service' => null,
+                            'PaymentMethod' => 'Discount',
+                            'TransactionDate' => $transactionDate,
+                            'Reference' => 'Billing #' . $billing->BillingID,
+                            'Debit' => 0,
+                            'Credit' => $discount,
+                            'Balance' => $runningBalance -= $discount,
+                            'IsStandalonePayment' => false,
+                            'Remarks' => $billing->Remarks ?? '',
+                        ];
+                    }
+
+                    // Handle payments (only record credit when actual payment exists)
+                    if ($billing->payments && $billing->payments->isNotEmpty()) {
+                        foreach ($billing->payments as $payment) {
+                            $paymentDate = $payment->PaymentDate
+                                ? $payment->PaymentDate->toDateTimeString()
+                                : $baseTransactionDate;
+                            $paymentTransactionDate = strtotime($paymentDate) > strtotime($transactionDate)
+                                ? $paymentDate
+                                : date('Y-m-d H:i:s', strtotime($transactionDate . ' +1 minute'));
+
+                            $methodName = $payment->paymentMethod
+                                ? $payment->paymentMethod->MethodName
+                                : 'Unknown Method';
+                            $netAmountPaid = floatval($payment->AmountPaid) - floatval($payment->Change);
+
+                            $ledgerEntries[] = [
+                                'Service' => null,
+                                'PaymentMethod' => $methodName,
+                                'TransactionDate' => $paymentTransactionDate,
+                                'Reference' => $payment->ReferenceID ?? 'Payment #' . $payment->PaymentID,
+                                'Debit' => 0,
+                                'Credit' => $netAmountPaid,
+                                'Balance' => $runningBalance -= $netAmountPaid,
+                                'IsStandalonePayment' => false,
+                                'Remarks' => $billing->Remarks ?? '',
+                            ];
+
+                            Log::info("Added billing payment to ledger", [
+                                'PaymentID' => $payment->PaymentID,
+                                'BillingID' => $billing->BillingID,
+                                'AmountPaid' => $netAmountPaid,
+                                'MethodName' => $methodName,
+                                'TransactionDate' => $paymentTransactionDate,
+                            ]);
+                        }
+                    }
                 }
             }
 
-            foreach ($servicesAvailed as $serviceAvailed) {
-                if (!$serviceAvailed->service) continue;
+            foreach ($standalonePayments as $payment) {
+                $paymentDate = $payment->PaymentDate
+                    ? $payment->PaymentDate->toDateTimeString()
+                    : now()->toDateTimeString();
+                $methodName = $payment->paymentMethod
+                    ? $payment->paymentMethod->MethodName
+                    : 'Unknown Method';
+                $netAmountPaid = floatval($payment->AmountPaid) - floatval($payment->Change);
 
-                $service = $serviceAvailed->service;
-                $serviceCost = is_numeric($service->Cost) ? floatval($service->Cost) : 0;
-                $updatedPrice = $serviceAvailed->UpdatedPrice !== null ? floatval($serviceAvailed->UpdatedPrice) : null;
+                $ledgerEntries[] = [
+                    'Service' => 'Standalone Payment',
+                    'PaymentMethod' => $methodName,
+                    'TransactionDate' => $paymentDate,
+                    'Reference' => $payment->ReferenceID ?? 'Payment #' . $payment->PaymentID,
+                    'Debit' => 0,
+                    'Credit' => $netAmountPaid,
+                    'Balance' => $runningBalance -= $netAmountPaid,
+                    'IsStandalonePayment' => true,
+                    'Remarks' => $payment->Notes ?? '',
+                ];
+            }
 
-                if ($service->IsMultiVisit) {
-                    if (!$serviceAvailed->treatmentProgress) {
+            foreach ($appointments as $appointment) {
+                foreach ($appointment->servicesAvailed as $serviceAvailed) {
+                    if (!$serviceAvailed->service || !$serviceAvailed->treatmentProgress) {
                         continue;
                     }
+
+                    $service = $serviceAvailed->service;
+                    if (!$service->IsMultiVisit) {
+                        continue;
+                    }
+
                     $treatmentProgress = $serviceAvailed->treatmentProgress;
                     $treatmentProgressId = $treatmentProgress->TreatmentProgressID;
 
-                    // Add debit entry for the service if not previously processed for this visit
-                    if (!isset($processedTreatments[$treatmentProgressId]) || $treatmentProgress->VisitCount == 1) {
+                    if (isset($processedTreatments[$treatmentProgressId])) {
+                        continue;
+                    }
+
+                    $previousTreatment = null;
+                    foreach ($treatmentProgresses as $tp) {
+                        if ($tp->TreatmentName === $service->ServiceName && $tp->PatientID == $patientId && $tp->Status === 'Completed') {
+                            $previousTreatment = $tp;
+                            break;
+                        }
+                    }
+
+                    if ($previousTreatment) {
+                        $baseTransactionDate = $appointment->updated_at
+                            ? $appointment->updated_at->toDateTimeString()
+                            : now()->toDateTimeString();
+                        $paymentExists = $appointment->billing && $appointment->billing->payments->isNotEmpty();
+                        $debitAmount = $paymentExists ? ($serviceAvailed->UpdatedPrice ?? $serviceAvailed->service->Cost) : 0;
+
                         $ledgerEntries[] = [
-                            'Service' => $service->ServiceName . ' (Visit ' . $treatmentProgress->VisitCount . ')',
+                            'Service' => $service->ServiceName,
                             'PaymentMethod' => null,
                             'TransactionDate' => $baseTransactionDate,
-                            'Reference' => 'Appointment #' . $appointment->AppointmentID . ' (Treatment #' . $treatmentProgressId . ')',
-                            'Debit' => $serviceCost,
+                            'Reference' => 'Appointment #' . $appointment->AppointmentID,
+                            'Debit' => floatval($debitAmount),
                             'Credit' => 0,
-                            'Balance' => $runningBalance += $serviceCost,
+                            'Balance' => $runningBalance += floatval($debitAmount),
                             'IsStandalonePayment' => false,
-                            'TreatmentProgressID' => $treatmentProgressId,
-                            'Remarks' => $appointment->billing ? ($appointment->billing->Remarks ?? '') : '', // Include billing remarks
-                        ];
-                    }
-
-                    $processedTreatments[$treatmentProgressId] = [
-                        'ServiceID' => $service->ServiceID,
-                        'Status' => $treatmentProgress->Status,
-                    ];
-                } else {
-                    $ledgerEntries[] = [
-                        'Service' => $service->ServiceName,
-                        'PaymentMethod' => null,
-                        'TransactionDate' => $baseTransactionDate,
-                        'Reference' => 'Appointment #' . $appointment->AppointmentID,
-                        'Debit' => $serviceCost,
-                        'Credit' => 0,
-                        'Balance' => $runningBalance += $serviceCost,
-                        'IsStandalonePayment' => false,
-                        'Remarks' => $appointment->billing ? ($appointment->billing->Remarks ?? '') : '', // Include billing remarks
-                    ];
-                }
-            }
-
-            if ($appointment->billing) {
-                $billing = $appointment->billing;
-                $billingDate = $billing->updated_at
-                    ? $billing->updated_at->toDateTimeString()
-                    : $baseTransactionDate;
-                $transactionDate = strtotime($billingDate) > strtotime($baseTransactionDate)
-                    ? $billingDate
-                    : $baseTransactionDate;
-
-                $discount = floatval($billing->Discount ?? 0);
-                $totalAmount = floatval($billing->TotalAmount);
-                $originalTotalAmount = $totalAmount; // Initial value from database
-
-                // Adjust originalTotalAmount for multi-visit services based on prior balance
-                if ($hasMultiVisitService && $runningBalance > 0) {
-                    $originalTotalAmount = $runningBalance; // Use current balance as pre-adjustment amount
-                }
-
-                if ($discount > 0) {
-                    $ledgerEntries[] = [
-                        'Service' => null,
-                        'PaymentMethod' => 'Discount',
-                        'TransactionDate' => $transactionDate,
-                        'Reference' => 'Billing #' . $billing->BillingID,
-                        'Debit' => 0,
-                        'Credit' => $discount,
-                        'Balance' => $runningBalance -= $discount,
-                        'IsStandalonePayment' => false,
-                        'Remarks' => $billing->Remarks ?? '', // Include billing remarks for discount
-                    ];
-                }
-
-                // Handle payments first
-                if ($billing->payments) {
-                    foreach ($billing->payments as $payment) {
-                        $paymentDate = $payment->PaymentDate
-                            ? $payment->PaymentDate->toDateTimeString()
-                            : $baseTransactionDate;
-                        $paymentTransactionDate = strtotime($paymentDate) > strtotime($transactionDate)
-                            ? $paymentDate
-                            : date('Y-m-d H:i:s', strtotime($transactionDate . ' +1 minute'));
-
-                        $methodName = $payment->paymentMethod
-                            ? $payment->paymentMethod->MethodName
-                            : 'Unknown Method';
-                        $netAmountPaid = floatval($payment->AmountPaid) - floatval($payment->Change);
-
-                        $ledgerEntries[] = [
-                            'Service' => null,
-                            'PaymentMethod' => $methodName,
-                            'TransactionDate' => $paymentTransactionDate,
-                            'Reference' => $payment->ReferenceID ?? 'Payment #' . $payment->PaymentID,
-                            'Debit' => 0,
-                            'Credit' => $netAmountPaid,
-                            'Balance' => $runningBalance -= $netAmountPaid,
-                            'IsStandalonePayment' => false,
-                            'Remarks' => $billing->Remarks ?? '', // Include billing remarks for payment
+                            'Remarks' => $appointment->billing ? ($appointment->billing->Remarks ?? '') : '',
                         ];
 
-                        Log::info("Added billing payment to ledger", [
-                            'PaymentID' => $payment->PaymentID,
-                            'BillingID' => $billing->BillingID,
-                            'AmountPaid' => $netAmountPaid,
-                            'MethodName' => $methodName,
-                            'TransactionDate' => $paymentTransactionDate,
-                        ]);
-                    }
-                }
-
-                // Handle adjustment based on originalTotalAmount and UpdatedPrice
-                foreach ($servicesAvailed as $serviceAvailed) {
-                    if (!$serviceAvailed->service || !$serviceAvailed->treatmentProgress) continue;
-                    $service = $serviceAvailed->service;
-                    $serviceCost = is_numeric($service->Cost) ? floatval($service->Cost) : 0;
-                    $updatedPrice = $serviceAvailed->UpdatedPrice !== null ? floatval($serviceAvailed->UpdatedPrice) : null;
-
-                    Log::debug("Checking adjustment data", [
-                        'ServiceAvailedID' => $serviceAvailed->ServiceAvailedID,
-                        'UpdatedPrice' => $updatedPrice,
-                        'OriginalTotalAmount' => $originalTotalAmount,
-                        'IsMultiVisit' => $service->IsMultiVisit,
-                    ]);
-
-                    if ($service->IsMultiVisit && $updatedPrice === null && $totalAmount > 0) {
-                        $updatedPrice = $totalAmount; // Fallback to TotalAmount if UpdatedPrice is not stored
-                        Log::warning("UpdatedPrice is null, falling back to TotalAmount", ['ServiceAvailedID' => $serviceAvailed->ServiceAvailedID, 'TotalAmount' => $totalAmount]);
-                    }
-
-                    $treatmentProgressId = $serviceAvailed->treatmentProgress->TreatmentProgressID;
-
-                    if ($service->IsMultiVisit && $updatedPrice !== null && abs($updatedPrice - $originalTotalAmount) > 0.01) {
-                        $adjustmentAmount = $updatedPrice - $originalTotalAmount;
-                        $adjustmentDate = date('Y-m-d H:i:s', strtotime($transactionDate . ' +2 minutes'));
-                        $ledgerEntries[] = [
-                            'Service' => null,
-                            'PaymentMethod' => 'Adjustment',
-                            'TransactionDate' => $adjustmentDate,
-                            'Reference' => 'Price Adjustment for ' . $service->ServiceName . ' (Treatment #' . $treatmentProgressId . ')',
-                            'Debit' => $adjustmentAmount > 0 ? $adjustmentAmount : 0,
-                            'Credit' => $adjustmentAmount < 0 ? abs($adjustmentAmount) : 0,
-                            'Balance' => $runningBalance += $adjustmentAmount,
-                            'IsStandalonePayment' => false,
-                            'TreatmentProgressID' => $treatmentProgressId,
-                            'Remarks' => $billing->Remarks ?? '', // Include billing remarks for adjustment
-                        ];
-
-                        Log::info("Added price adjustment based on originalTotalAmount", [
-                            'TreatmentProgressID' => $treatmentProgressId,
-                            'ServiceName' => $service->ServiceName,
-                            'OriginalTotalAmount' => $originalTotalAmount,
-                            'UpdatedPrice' => $updatedPrice,
-                            'AdjustmentAmount' => $adjustmentAmount,
-                            'TransactionDate' => $adjustmentDate,
-                        ]);
-                    }
-                }
-
-                // Handle single-visit adjustments if applicable
-                if (!$hasMultiVisitService) {
-                    $totalOriginalServiceCost = $servicesAvailed->sum(function ($sa) {
-                        return is_numeric($sa->service->Cost) ? floatval($sa->service->Cost) : 0;
-                    });
-                    $adjustmentAmount = $totalOriginalServiceCost - $totalAmount;
-
-                    if (abs($adjustmentAmount) > 0.01) {
-                        $adjustmentDate = date('Y-m-d H:i:s', strtotime($transactionDate . ' +1 minute'));
-                        $ledgerEntries[] = [
-                            'Service' => null,
-                            'PaymentMethod' => 'Adjustment',
-                            'TransactionDate' => $adjustmentDate,
-                            'Reference' => 'Billing #' . $billing->BillingID,
-                            'Debit' => $adjustmentAmount < 0 ? abs($adjustmentAmount) : 0,
-                            'Credit' => $adjustmentAmount > 0 ? $adjustmentAmount : 0,
-                            'Balance' => $runningBalance += ($adjustmentAmount < 0 ? -abs($adjustmentAmount) : $adjustmentAmount),
-                            'IsStandalonePayment' => false,
-                            'Remarks' => $billing->Remarks ?? '', // Include billing remarks for single-visit adjustment
+                        $processedTreatments[$treatmentProgressId] = [
+                            'ServiceID' => $service->ServiceID,
+                            'Status' => $treatmentProgress->Status,
                         ];
                     }
                 }
             }
-        }
 
-        foreach ($standalonePayments as $payment) {
-            $paymentDate = $payment->PaymentDate
-                ? $payment->PaymentDate->toDateTimeString()
-                : now()->toDateTimeString();
-            $methodName = $payment->paymentMethod
-                ? $payment->paymentMethod->MethodName
-                : 'Unknown Method';
-            $netAmountPaid = floatval($payment->AmountPaid) - floatval($payment->Change);
+            usort($ledgerEntries, function ($a, $b) {
+                $dateA = strtotime($a['TransactionDate']) ?: 0;
+                $dateB = strtotime($b['TransactionDate']) ?: 0;
+                return $dateA <=> $dateB;
+            });
 
-            $ledgerEntries[] = [
-                'Service' => 'Standalone Payment',
-                'PaymentMethod' => $methodName,
-                'TransactionDate' => $paymentDate,
-                'Reference' => $payment->ReferenceID ?? 'Payment #' . $payment->PaymentID,
-                'Debit' => 0,
-                'Credit' => $netAmountPaid,
-                'Balance' => $runningBalance -= $netAmountPaid,
-                'IsStandalonePayment' => true,
-                'Remarks' => $payment->Notes ?? '', // Use payment Notes for standalone payments
-            ];
-        }
-
-        foreach ($appointments as $appointment) {
-            foreach ($appointment->servicesAvailed as $serviceAvailed) {
-                if (!$serviceAvailed->service || !$serviceAvailed->treatmentProgress) {
-                    continue;
-                }
-
-                $service = $serviceAvailed->service;
-                if (!$service->IsMultiVisit) {
-                    continue;
-                }
-
-                $treatmentProgress = $serviceAvailed->treatmentProgress;
-                $treatmentProgressId = $treatmentProgress->TreatmentProgressID;
-
-                if (isset($processedTreatments[$treatmentProgressId])) {
-                    continue;
-                }
-
-                $previousTreatment = null;
-                foreach ($treatmentProgresses as $tp) {
-                    if ($tp->TreatmentName === $service->ServiceName && $tp->PatientID == $patientId && $tp->Status === 'Completed') {
-                        $previousTreatment = $tp;
-                        break;
-                    }
-                }
-
-                if ($previousTreatment) {
-                    $baseTransactionDate = $appointment->updated_at
-                        ? $appointment->updated_at->toDateTimeString()
-                        : now()->toDateTimeString();
-                    $serviceCost = is_numeric($service->Cost) ? floatval($service->Cost) : 0;
-
-                    $ledgerEntries[] = [
-                        'Service' => $service->ServiceName,
-                        'PaymentMethod' => null,
-                        'TransactionDate' => $baseTransactionDate,
-                        'Reference' => 'Appointment #' . $appointment->AppointmentID,
-                        'Debit' => $serviceCost,
-                        'Credit' => 0,
-                        'Balance' => $runningBalance += $serviceCost,
-                        'IsStandalonePayment' => false,
-                        'Remarks okuRemarks' => $appointment->billing ? ($appointment->billing->Remarks ?? '') : '', // Include billing remarks
-                    ];
-
-                    $processedTreatments[$treatmentProgressId] = [
-                        'ServiceID' => $service->ServiceID,
-                        'Status' => $treatmentProgress->Status,
-                    ];
-                }
+            $runningBalance = 0;
+            foreach ($ledgerEntries as &$entry) {
+                $runningBalance = $runningBalance + $entry['Debit'] - $entry['Credit'];
+                $entry['Balance'] = $runningBalance;
             }
+
+            if ($returnBalanceOnly) {
+                $finalBalance = $ledgerEntries ? end($ledgerEntries)['Balance'] : 0;
+                Log::info("Returning balance for PatientID: $patientId", ['balance' => $finalBalance]);
+                return $finalBalance;
+            }
+
+            Log::info("Returning ledger for PatientID: $patientId", ['entries' => $ledgerEntries]);
+            return response()->json(['ledger' => $ledgerEntries]);
+        } catch (\Exception $e) {
+            Log::error("Error fetching ledger for PatientID: $patientId", [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return response()->json(['error' => 'Failed to fetch ledger data'], 500);
         }
-
-        usort($ledgerEntries, function ($a, $b) {
-            $dateA = strtotime($a['TransactionDate']) ?: 0;
-            $dateB = strtotime($b['TransactionDate']) ?: 0;
-            return $dateA <=> $dateB;
-        });
-
-        $runningBalance = 0;
-        foreach ($ledgerEntries as &$entry) {
-            $runningBalance = $runningBalance + $entry['Debit'] - $entry['Credit'];
-            $entry['Balance'] = $runningBalance;
-        }
-
-        if ($returnBalanceOnly) {
-            $finalBalance = $ledgerEntries ? end($ledgerEntries)['Balance'] : 0;
-            Log::info("Returning balance for PatientID: $patientId", ['balance' => $finalBalance]);
-            return $finalBalance;
-        }
-
-        Log::info("Returning ledger for PatientID: $patientId", ['entries' => $ledgerEntries]);
-        return response()->json(['ledger' => $ledgerEntries]);
-    } catch (\Exception $e) {
-        Log::error("Error fetching ledger for PatientID: $patientId", [
-            'error' => $e->getMessage(),
-            'trace' => $e->getTraceAsString(),
-        ]);
-        return response()->json(['error' => 'Failed to fetch ledger data'], 500);
     }
-}
 
     // public function getPatientLedger(Request $request, $patientId = null, $returnBalanceOnly = false)
     // {
