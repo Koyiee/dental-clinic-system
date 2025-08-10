@@ -191,7 +191,7 @@
               <thead>
                 <tr>
                   <th @click="sortTable('PatientID')" class="sortable-header">
-                    No.
+                    Patient ID
                     <i v-if="sortConfig.key === 'PatientID'" class="bx" :class="getSortIconClass('PatientID')"></i>
                   </th>
                   <th @click="sortTable('FullName')" class="sortable-header">
@@ -213,17 +213,17 @@
                 </tr>
               </thead>
               <tbody class="container-patient">
-                <tr v-for="(patient, index) in filteredPatients" :key="patient.PatientID" @click="selectPatient(patient)" class="patient-row">
-                  <td>{{ (currentPage - 1) * 15 + index + 1 }}</td>
-                  <td class="truncate-cell">{{ patient.user.FirstName }} {{ patient.user.LastName }}</td>
-                  <td class="truncate-cell">{{ patient.user.ContactNumber || 'N/A' }}</td>
-                  <td class="truncate-cell">{{ formatAppointmentDate(patient.nextAppointment) || 'N/A' }}</td>
-                  <td class="truncate-cell">{{ formatAppointmentDate(patient.lastAppointment) || 'N/A' }}</td>
-                </tr>
-                <tr v-if="filteredPatients.length === 0">
-                  <td colspan="5" class="no-data">No patients found...</td>
-                </tr>
-              </tbody>
+  <tr v-for="(patient, index) in filteredPatients" :key="patient.PatientID" @click="selectPatient(patient)" class="patient-row">
+    <td>{{ patient.PatientID }}</td>
+    <td class="truncate-cell">{{ patient.user.FirstName }} {{ patient.user.LastName }}</td>
+    <td class="truncate-cell">{{ patient.user.ContactNumber || 'N/A' }}</td>
+    <td class="truncate-cell">{{ formatAppointmentDate(patient.nextAppointment) || 'N/A' }}</td>
+    <td class="truncate-cell">{{ formatAppointmentDate(patient.lastAppointment) || 'N/A' }}</td>
+  </tr>
+  <tr v-if="filteredPatients.length === 0">
+    <td colspan="5" class="no-data">No patients found...</td>
+  </tr>
+</tbody>
             </table>
             
             <!-- Mobile Cards -->
