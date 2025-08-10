@@ -153,7 +153,7 @@
               <thead>
                 <tr>
                   <th @click="sortTable('PatientID')" class="sortable-header">
-                    No.
+                    Patient ID
                     <i v-if="sortConfig.key === 'PatientID'" class="bx" :class="getSortIconClass('PatientID')"></i>
                   </th>
                   <th @click="sortTable('FullName')" class="sortable-header">
@@ -176,7 +176,7 @@
               </thead>
               <tbody class="container-patient">
                 <tr v-for="(patient, index) in filteredPatients" :key="patient.PatientID" @click="selectPatient(patient)" class="patient-row">
-                  <td>{{ (currentPage - 1) * 15 + index + 1 }}</td>
+                  <td>{{ patient.PatientID }}</td>
                   <td class="truncate-cell">{{ patient.FirstName }} {{ patient.LastName }}</td>
                   <td class="truncate-cell">{{ patient.ContactNumber || 'N/A' }}</td>
                   <td class="truncate-cell">{{ formatAppointmentDate(patient.nextAppointment) || 'N/A' }}</td>
@@ -795,6 +795,7 @@
       <div class="dental-chart-container">
         <div class="chart-section">
           <h4>Labial</h4>
+          <div class="vertical-midline" aria-hidden="true"></div>
           <div class="teeth-row upper-teeth">
             <div v-for="tooth in upperTeeth" :key="tooth.id" class="tooth-container">
               <div class="tooth-number">{{ tooth.id }}</div>
@@ -874,6 +875,7 @@
         
         <div class="chart-section">
           <h4>Lingual</h4>
+          <div class="vertical-midline" aria-hidden="true"></div>
           <div class="teeth-row upper-teeth">
             <div v-for="tooth in upperLingualTeeth" :key="tooth.id" class="tooth-container">
               <div class="tooth-number">{{ tooth.id }}</div>
@@ -2241,6 +2243,18 @@ async saveDentalChart() {
 
     labialSection.appendChild(labialTitle);
 
+    // ADD vertical midline for Labial (export)
+    labialSection.style.position = 'relative';
+    const labialMidline = document.createElement('div');
+    labialMidline.style.position = 'absolute';
+    labialMidline.style.left = '50%';
+    labialMidline.style.transform = 'translateX(-50%)';
+    labialMidline.style.top = '25px';
+    labialMidline.style.bottom = '-20px';
+    labialMidline.style.width = '1px';
+    labialMidline.style.backgroundColor = '#06693a';
+    labialSection.appendChild(labialMidline);
+
     // Upper teeth row
     const upperTeethRow = this.createTeethRow(this.upperTeeth, true);
     labialSection.appendChild(upperTeethRow);
@@ -2265,6 +2279,18 @@ async saveDentalChart() {
     lingualTitle.style.paddingBottom = '5px';
 
     lingualSection.appendChild(lingualTitle);
+
+    // ADD vertical midline for Lingual (export)
+    lingualSection.style.position = 'relative';
+    const lingualMidline = document.createElement('div');
+    lingualMidline.style.position = 'absolute';
+    lingualMidline.style.left = '50%';
+    lingualMidline.style.transform = 'translateX(-50%)';
+    lingualMidline.style.top = '25px';
+    lingualMidline.style.bottom = '-20px';
+    lingualMidline.style.width = '1px';
+    lingualMidline.style.backgroundColor = '#06693a';
+    lingualSection.appendChild(lingualMidline);
 
     // Upper lingual teeth row
     const upperLingualTeethRow = this.createTeethRow(this.upperLingualTeeth, true);
@@ -5726,5 +5752,21 @@ hr {
     transform: scale(0.98);
     transition: transform 0.1s ease;
   }
+}
+
+/* Vertical midline for each dental-chart section */
+.chart-section {
+  position: relative; /* scope the absolute line to the section */
+}
+
+.vertical-midline {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: 40px;      /* starts just below the section title */
+  bottom: 0px;    /* small inset from the bottom */
+  width: 2px;
+  background-color: #06693A;
+  pointer-events: none; /* don't block clicks on teeth */
 }
 </style>
