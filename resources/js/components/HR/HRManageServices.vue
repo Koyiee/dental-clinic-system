@@ -162,11 +162,11 @@
                 <button @click="filterByActive(true)">Enabled</button>
                 <button @click="filterByActive(false)">Disabled</button>
             </div>
-            <div class="filter-section">
+            <!-- <div class="filter-section">
                 <div class="filter-header">Cost</div>
                 <button @click="sortByCost('asc')">Cost: Low to High</button>
                 <button @click="sortByCost('desc')">Cost: High to Low</button>
-            </div>
+            </div> -->
             <button class="clear-filter" @click="clearFilters">Clear Filters</button>
           </div>
         </div>
@@ -192,9 +192,9 @@
                     <th style="width: 20%;" @click="sortTable('Description')" class="sortable-header">
                       Description <i v-if="sortConfig.key === 'Description'" class="bx" :class="getSortIconClass('Description')"></i>
                     </th>
-                    <th style="width: 15%" @click="sortTable('Cost')" class="sortable-header">
+                    <!-- <th style="width: 15%" @click="sortTable('Cost')" class="sortable-header">
                       Cost <i v-if="sortConfig.key === 'Cost'" class="bx" :class="getSortIconClass('Cost')"></i>
-                    </th>
+                    </th> -->
                     <th style="width: 15%" @click="sortTable('IsMultiVisit')" class="sortable-header">
                       Multi-Visit <i v-if="sortConfig.key === 'IsMultiVisit'" class="bx" :class="getSortIconClass('IsMultiVisit')"></i>
                     </th>
@@ -215,7 +215,7 @@
                     <td class="description-cell">
                         <div class="truncate-text">{{ service.Description || 'No description' }}</div>
                     </td>
-                    <td>₱ {{ formatCost(service.Cost) }}</td>
+                    <!-- <td>₱ {{ formatCost(service.Cost) }}</td> -->
                     <td>
                         <span class="status-badge" :class="service.IsMultiVisit ? 'status-multi' : 'status-single'">
                             {{ service.IsMultiVisit ? 'Yes' : 'No' }}
@@ -268,10 +268,10 @@
                         <span class="card-label">Description:</span>
                         <span class="card-value">{{ service.Description || 'No description' }}</span>
                     </div>
-                    <div class="card-row">
+                    <!-- <div class="card-row">
                         <span class="card-label">Cost:</span>
                         <span class="card-value">₱ {{ formatCost(service.Cost) }}</span>
-                    </div>
+                    </div> -->
                     <div class="card-row">
                         <span class="card-label">Multi-Visit:</span>
                         <span class="card-value">
@@ -322,10 +322,10 @@
                 <div class="detail-label">Description:</div>
                 <div class="detail-value">{{ selectedService.Description || 'No description' }}</div>
             </div>
-            <div class="detail-row">
+            <!-- <div class="detail-row">
                 <div class="detail-label">Cost:</div>
                 <div class="detail-value">₱ {{ formatCost(selectedService.Cost) }}</div>
-            </div>
+            </div> -->
             <div class="detail-row">
                 <div class="detail-label">Multi-Visit:</div>
                 <div class="detail-value">
@@ -389,7 +389,7 @@
                         ></textarea>
                     </div>
                     
-                    <div class="form-group">
+                    <!-- <div class="form-group">
                         <label for="Cost">Cost <span class="required">*</span></label>
                         <div class="cost-input-wrapper">
                             <span class="currency-symbol">₱</span>
@@ -402,7 +402,7 @@
                                 class="modal-input cost-input"
                             />
                         </div>
-                    </div>
+                    </div> -->
                     
                     <div class="form-group">
                         <label for="IsMultiVisit">Multi-Visit Service</label>
@@ -462,7 +462,7 @@
                     </div>
                     
                     <div class="form-group full-width">
-                        <label for="AddDescription">Description<span class="required">*</span></label>
+                        <label for="AddDescription">Description</label>
                         <textarea 
                             v-model="formData.Description" 
                             id="AddDescription" 
@@ -471,7 +471,7 @@
                         ></textarea>
                     </div>
                     
-                    <div class="form-group">
+                    <!-- <div class="form-group">
                         <label for="AddCost">Cost <span class="required">*</span></label>
                         <div class="cost-input-wrapper">
                             <span class="currency-symbol">₱</span>
@@ -484,7 +484,7 @@
                                 class="modal-input cost-input"
                             />
                         </div>
-                    </div>
+                    </div> -->
                     
                     <div class="form-group">
                         <label for="AddIsMultiVisit">Multi-Visit Service</label>
