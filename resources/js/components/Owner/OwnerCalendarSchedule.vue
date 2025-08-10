@@ -245,9 +245,11 @@
             </div>
           </div>
           
-          <FullCalendar 
-            ref="fullCalendar" 
-            class="hr-calendar" 
+          <FullCalendar
+            v-if="blockedDates.length >= 0"
+            ref="fullCalendar"
+            :key="calendarKey"
+            class="hr-calendar"
             :options="calendarOptions"
           />
         </div>
@@ -676,7 +678,7 @@
                   >
                     <div class="service-details">
                       <div class="service-name">{{ service.ServiceName }}</div>
-                      <div class="service-cost">₱{{ service.Cost }}</div>
+                      <!-- <div class="service-cost">₱{{ service.Cost }}</div> -->
                       <div v-if="service.IsMultiVisit" class="service-badge multi-visit">Multi-visit</div>
                     </div>
                     <div class="service-checkbox">
@@ -738,14 +740,14 @@
                   <span class="summary-label">Services:</span>
                   <ul class="services-summary">
                     <li v-for="serviceId in newAppointment.services" :key="serviceId">
-                      {{ getServiceName(serviceId) }} - ₱{{ getServiceCost(serviceId) }}
+                      {{ getServiceName(serviceId) }}
                     </li>
                   </ul>
                 </div>
-                <div class="summary-item total">
+                <!-- <div class="summary-item total">
                   <span class="summary-label">Total Cost:</span>
                   <span>₱{{ calculateTotalCost() }}</span>
-                </div>
+                </div> -->
                 <div v-if="newAppointment.notes" class="summary-item">
                   <span class="summary-label">Additional Notes:</span>
                   <p class="notes-text">{{ newAppointment.notes}}</p>
@@ -879,6 +881,7 @@ export default {
   },
   data() {
     return {
+      calendarKey: 0,
       isViewOnly: false,
       newServiceId: '',
       selectedAppointment: { services: [] },
@@ -931,41 +934,49 @@ export default {
         datesSet: this.handleDatesSet,
         eventDidMount: this.eventDidMount,
         dayCellDidMount: (info) => {
-          const dateStr = info.date.toISOString().split('T')[0];
-          if (this.blockedDates.includes(dateStr)) {
-            info.el.classList.add('fc-day-blocked');
-            
-            this.getBlockReason(dateStr).then(reason => {
-              if (reason) {
-                const tooltip = document.createElement('div');
-                tooltip.className = 'blocked-date-tooltip';
-                tooltip.textContent = reason;
-                
-                info.el.addEventListener('mouseenter', () => {
-                  document.body.appendChild(tooltip);
-                  const rect = info.el.getBoundingClientRect();
-                  tooltip.style.position = 'absolute';
-                  tooltip.style.left = `${rect.left + window.scrollX}px`;
-                  tooltip.style.top = `${rect.bottom + window.scrollY + 5}px`;
-                  tooltip.style.zIndex = 1000;
-                });
-                
-                info.el.addEventListener('mouseleave', () => {
-                  if (document.body.contains(tooltip)) document.body.removeChild(tooltip);
-                });
-              }
-            });
-          }
-          
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          if (info.date < today) {
-            info.el.classList.add('past-date');
-          }
-          
-          info.el.addEventListener('mouseenter', () => info.el.classList.add('day-cell-hover'));
-          info.el.addEventListener('mouseleave', () => info.el.classList.remove('day-cell-hover'));
-        },
+  const dateStr = info.date.toISOString().split('T')[0];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  console.log("Checking date:", dateStr);
+  console.log("Blocked dates:", this.blockedDates);
+
+  if (this.blockedDates.includes(dateStr)) {
+    console.log("Date is blocked:", dateStr);
+    info.el.classList.add('fc-day-blocked');
+    this.getBlockReason(dateStr).then(reason => {
+      if (reason) {
+        const tooltip = document.createElement('div');
+        tooltip.className = 'blocked-date-tooltip';
+        tooltip.textContent = reason;
+        info.el.addEventListener('mouseenter', () => {
+          document.body.appendChild(tooltip);
+          const rect = info.el.getBoundingClientRect();
+          tooltip.style.position = 'absolute';
+          tooltip.style.left = `${rect.left + window.scrollX}px`;
+          tooltip.style.top = `${rect.bottom + window.scrollY + 5}px`;
+          tooltip.style.zIndex = 1000;
+        });
+        info.el.addEventListener('mouseleave', () => {
+          if (document.body.contains(tooltip)) document.body.removeChild(tooltip);
+        });
+      }
+    });
+  }
+
+  // Additional logic for Sundays and past dates
+  if (info.date.getDay() === 0) {
+    info.el.classList.add('sunday-blocked');
+  }
+
+  if (info.date < today) {
+    info.el.classList.add('past-date');
+  }
+
+  // Hover effects
+  info.el.addEventListener('mouseenter', () => info.el.classList.add('day-cell-hover'));
+  info.el.addEventListener('mouseleave', () => info.el.classList.remove('day-cell-hover'));
+},
         dayHeaderDidMount: this.dayHeaderDidMount,
         eventContent: function(arg) {
           const services = arg.event.extendedProps.services?.length > 0 
@@ -1025,7 +1036,7 @@ export default {
     filteredDentists() {
       // Return all dentists, only filtering those who have appointments at the selected time
       // This will be handled by the checkDentistAvailabilityForTime method
-      console.log('Filtered Dentists:', this.availableDentists);
+      // console.log('Filtered Dentists:', this.availableDentists);
       return this.availableDentists.filter(dentist => 
           !this.unavailableDentists.includes(String(dentist.id))
       );
@@ -1207,22 +1218,37 @@ export default {
       }
     },
     async getBlockReason(dateStr) {
+      // Check if the reason for this date is already known
       if (this.blockedDateReasons[dateStr]) {
         return this.blockedDateReasons[dateStr];
       }
-      
+
+      // Check if the date is already blocked
+      if (this.blockedDates.includes(dateStr)) {
+        return "This date is already blocked.";
+      }
+
       try {
-        const response = await axios.get(`/appointments/block-date/${dateStr}`);
+        const response = await axios.post('/appointments/block-date', {
+          date: dateStr,
+          reason: "Fetching block reason" // Optional reason
+        });
+
         if (response.data && response.data.reason) {
           this.blockedDateReasons[dateStr] = response.data.reason;
           return response.data.reason;
         }
         return "Date is blocked";
       } catch (error) {
+        if (error.response && error.response.data && error.response.data.message) {
+          this.blockedDateReasons[dateStr] = error.response.data.message;
+          return error.response.data.message;
+        }
         console.error('Error fetching block reason:', error);
         return "Date is blocked";
       }
     },
+
     openDentistAssignmentModal(appointment) {
       this.selectedAppointment = appointment;
       this.selectedDentistId = appointment.UserID || '';
@@ -1350,7 +1376,7 @@ export default {
           dentistId: dentist.DentistID,
           name: `${dentist.FirstName} ${dentist.LastName}`.trim() || 'Unnamed Dentist',
         }));
-        console.log('Fetched Dentists:', this.availableDentists);
+        // console.log('Fetched Dentists:', this.availableDentists);
       } catch (error) {
         console.error('Error fetching dentists:', error);
       }
@@ -1365,7 +1391,7 @@ export default {
     
     // Extract dentist IDs who are unavailable due to day-off
     const unavailableDentistIDs = response.data.unavailable_dentists || [];
-    console.log('Unavailable dentists due to day-off on', date, ':', unavailableDentistIDs);
+    // console.log('Unavailable dentists due to day-off on', date, ':', unavailableDentistIDs);
     
     // Convert dentist IDs to user IDs for filtering
     const unavailableUserIDs = [];
@@ -1377,7 +1403,7 @@ export default {
     });
     
     this.unavailableDentists = unavailableUserIDs;
-    console.log('Updated unavailable dentists (UserIDs):', this.unavailableDentists);
+    // console.log('Updated unavailable dentists (UserIDs):', this.unavailableDentists);
   } catch (error) {
     console.error('Error checking dentist availability:', error);
     this.unavailableDentists = [];
@@ -1399,7 +1425,7 @@ export default {
         
         // Extract dentist IDs who already have appointments at this time
         const busyDentistIDs = response.data.busy_dentists || [];
-        console.log('Busy dentists at', time, 'on', date, ':', busyDentistIDs);
+        // console.log('Busy dentists at', time, 'on', date, ':', busyDentistIDs);
         
         // Update the unavailableDentists array to include busy dentists
         const unavailableDentists = [];
@@ -1413,7 +1439,7 @@ export default {
         });
         
         this.unavailableDentists = unavailableDentists;
-        console.log('Updated unavailable dentists:', this.unavailableDentists);
+        // console.log('Updated unavailable dentists:', this.unavailableDentists);
       } catch (error) {
         console.error('Error checking dentist availability for time:', error);
       }
@@ -1679,7 +1705,7 @@ export default {
       }
     },
     generateAvailableTimes() {
-  console.log("Generating available times for date:", this.newAppointment.date);
+  // console.log("Generating available times for date:", this.newAppointment.date);
   const times = [];
   const startHour = 9;
   const endHour = 16.5;
@@ -1701,19 +1727,19 @@ export default {
     }
   }
   this.availableTimes = times.map(time => ({ time, is_available: true }));
-  console.log("Generated times:", this.availableTimes);
+  // console.log("Generated times:", this.availableTimes);
   this.filterTimesFromBackend();
 },
 
     // Add this new method to filter times based on backend data
     async filterTimesFromBackend() {
-      console.log("Filtering available times for date:", this.newAppointment.date);
+      // console.log("Filtering available times for date:", this.newAppointment.date);
       try {
         const payload = {
           date: this.newAppointment.date,
           times: this.availableTimes.map(slot => slot.time),
         };
-        console.log("Request payload:", payload);
+        // console.log("Request payload:", payload);
         const response = await axios.post('/filter-available-times', payload, {
           withCredentials: true,
         });
@@ -1726,7 +1752,7 @@ export default {
             is_available: updatedSlot ? updatedSlot.is_available : false,
           };
         });
-        console.log("Updated time slots:", this.availableTimes);
+        // console.log("Updated time slots:", this.availableTimes);
       } catch (error) {
         console.error("Error filtering available times:", error.response?.data || error.message);
         // In case of error, keep all slots as available to avoid blocking interaction
@@ -1888,80 +1914,97 @@ export default {
       }
     },
     async fetchBlockedDates() {
-      try {
-        const response = await axios.get('/appointments/blocked-dates');
-        this.blockedDates = response.data;
-        
-        for (const dateStr of this.blockedDates) {
-          this.getBlockReason(dateStr);
-        }
-      } catch (error) {
-        console.error('Error fetching blocked dates:', error);
-        this.blockedDates = [];
-      }
-    },
+  try {
+    const response = await axios.get('/appointments/blocked-dates');
+    
+    // Fix: Parse dates in local timezone to prevent day shifting
+    this.blockedDates = response.data.map(item => {
+      // Create date object in local timezone to prevent UTC conversion issues
+      const date = new Date(item.Date + 'T00:00:00'); // Add time component to prevent timezone shift
+      return date.toISOString().split('T')[0];
+    });
+    
+    console.log("Blocked Dates (fixed):", this.blockedDates);
+    this.calendarKey += 1; // Force re-render of the calendar
+    
+    this.blockedDates.forEach(dateStr => {
+      this.getBlockReason(dateStr);
+    });
+  } catch (error) {
+    console.error('Error fetching blocked dates:', error);
+    this.blockedDates = [];
+  }
+},
     toggleBlockMode() {
       this.isBlockMode = !this.isBlockMode;
       this.blockReason = '';
     },
     async handleDateClick(info) {
-      if (!this.isBlockMode) {
-        // Make day clickable like in dentist calendar
-        info.view.calendar.changeView('timeGridDay', info.dateStr);
-        return;
-      }
-      
-      const dateStr = info.dateStr;
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const selectedDate = new Date(dateStr);
-      if (selectedDate < today) {
-        Swal.fire('Error', 'Cannot block past dates.', 'error');
-        return;
-      }
-      try {
-        const [blockResponse, appointmentResponse] = await Promise.all([
-          axios.post('/appointments/check-blocked', { date: dateStr }),
-          axios.post('/appointments/check-date', { date: dateStr }),
-        ]);
-        const isBlocked = blockResponse.data.isBlocked;
-        const appointmentCount = appointmentResponse.data.appointmentCount;
+  const dateStr = info.dateStr;
+  const selectedDate = new Date(dateStr);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
-        if (appointmentCount > 0 && !isBlocked) {
-          Swal.fire('Error', `This date has ${appointmentCount} appointment(s). Blocking is not allowed.`, 'error');
-          return;
-        }
+  // Prevent interaction with Sundays
+  if (selectedDate.getDay() === 0) {
+    Swal.fire('Info', 'The clinic is closed on Sundays and cannot be blocked or unblocked.', 'info');
+    return;
+  }
 
-        const action = isBlocked ? 'unblock' : 'block';
-        const actionText = isBlocked ? 'Unblock' : 'Block';
-        const result = await Swal.fire({
-          title: `Confirm ${actionText} Date`,
-          text: `Are you sure you want to ${action} the date ${this.formatDate(dateStr)}?`,
-          icon: 'question',
-          showCancelButton: true,
-          confirmButtonColor: '#06693A',
-          cancelButtonColor: '#d33',
-          confirmButtonText: `Yes, ${actionText} It`,
-          cancelButtonText: 'No, Cancel',
-          input: isBlocked ? null : 'textarea',
-          inputLabel: isBlocked ? null : 'Reason (Optional)',
-          inputPlaceholder: isBlocked ? null : 'Enter the reason for blocking this date (e.g., clinic closure, holiday)',
-          inputAttributes: isBlocked ? {} : { maxlength: 200 },
-        });
+  if (!this.isBlockMode) {
+    // Make day clickable like in dentist calendar
+    info.view.calendar.changeView('timeGridDay', info.dateStr);
+    return;
+  }
 
-        if (result.isConfirmed) {
-          if (isBlocked) {
-            await this.unblockDate(dateStr);
-          } else {
-            this.blockReason = result.value || '';
-            await this.blockDate(dateStr);
-          }
-        }
-      } catch (error) {
-        console.error('Error checking date status:', error);
-        Swal.fire('Error', 'Failed to check date status: ' + (error.response?.data?.message || error.message), 'error');
+  if (selectedDate < today) {
+    Swal.fire('Error', 'Cannot block past dates.', 'error');
+    return;
+  }
+
+  try {
+    const [blockResponse, appointmentResponse] = await Promise.all([
+      axios.post('/appointments/check-blocked', { date: dateStr }),
+      axios.post('/appointments/check-date', { date: dateStr }),
+    ]);
+    const isBlocked = blockResponse.data.isBlocked;
+    const appointmentCount = appointmentResponse.data.appointmentCount;
+
+    if (appointmentCount > 0 && !isBlocked) {
+      Swal.fire('Error', `This date has ${appointmentCount} appointment(s). Blocking is not allowed.`, 'error');
+      return;
+    }
+
+    const action = isBlocked ? 'unblock' : 'block';
+    const actionText = isBlocked ? 'Unblock' : 'Block';
+    const result = await Swal.fire({
+      title: `Confirm ${actionText} Date`,
+      text: `Are you sure you want to ${action} the date ${this.formatDate(dateStr)}?`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#06693A',
+      cancelButtonColor: '#d33',
+      confirmButtonText: `Yes, ${actionText} It`,
+      cancelButtonText: 'No, Cancel',
+      input: isBlocked ? null : 'textarea',
+      inputLabel: isBlocked ? null : 'Reason (Optional)',
+      inputPlaceholder: isBlocked ? null : 'Enter the reason for blocking this date (e.g., clinic closure, holiday)',
+      inputAttributes: isBlocked ? {} : { maxlength: 200 },
+    });
+
+    if (result.isConfirmed) {
+      if (isBlocked) {
+        await this.unblockDate(dateStr);
+      } else {
+        this.blockReason = result.value || '';
+        await this.blockDate(dateStr);
       }
-    },
+    }
+  } catch (error) {
+    console.error('Error checking date status:', error);
+    Swal.fire('Error', 'Failed to check date status: ' + (error.response?.data?.message || error.message), 'error');
+  }
+},
     async blockDate(dateStr) {
       this.isBlocking = true;
       try {
@@ -2716,7 +2759,7 @@ border-radius: 50%;
 .legend-color.declined { background-color: #ff6b6b; }
 .legend-color.did-not-proceed { background-color: #ff9800; }
 .legend-color.cancelled { background-color: #dc3545; }
-.legend-color.blocked { background-color: #dc3545; }
+.legend-color.blocked { background-color: #e8e8e8 !important; }
 
 /* Calendar Container */
 .calendar-container {
@@ -3980,36 +4023,7 @@ margin-bottom: 5px;
   cursor: not-allowed;
 }
 
-/* Blocked Date Styling */
-.fc-day-blocked {
-background-color: #ffebeb !important;
-position: relative;
-}
 
-.fc-day-blocked::after {
-content: "Blocked";
-position: absolute;
-top: 5px;
-right: 5px;
-background-color: #dc3545;
-color: white;
-padding: 2px 5px;
-border-radius: 3px;
-font-size: 12px;
-}
-
-/* New styles for blocked date tooltip */
-.blocked-date-tooltip {
-background-color: #fff;
-border-left: 4px solid #dc3545;
-border-radius: 4px;
-box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-color: #333;
-font-size: 14px;
-max-width: 250px;
-padding: 10px 12px;
-z-index: 1000;
-}
 
 /* Large Desktop */
 @media (min-width: 1400px) {
@@ -4689,8 +4703,86 @@ hr {
   margin: 0;
 }
 }
+</style>
 
-.nav-link {
-  margin-top: -30px;
+<style>
+/* HR Calendar Styles for Blocked Dates and Sundays */
+.hr-calendar .fc-daygrid-day.fc-day-blocked {
+  background-color: #e8e8e8 !important;
+  pointer-events: none;
+  color: #999 !important;
+  opacity: 0.6;
+  position: relative;
+}
+
+.hr-calendar .fc-daygrid-day.fc-day-blocked::after {
+  content: "Blocked";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 10px;
+  color: white;
+  font-weight: 500;
+}
+
+.hr-calendar .fc-daygrid-day.sunday-blocked {
+  background-color: #e8e8e8 !important;
+  pointer-events: none;
+  color: #999 !important;
+  opacity: 0.6;
+  position: relative;
+}
+
+.hr-calendar .fc-daygrid-day.sunday-blocked::after {
+  content: "Closed";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 10px;
+  color: white;
+  font-weight: 500;
+}
+
+.hr-calendar .blocked-date-tooltip {
+  background-color: #e8e8e8 !important;
+  color: #999 !important;
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  z-index: 1000;
+}
+
+/* Blocked Date Styling */
+.fc-day-blocked {
+background-color: #e8e8e8 !important;
+position: relative;
+}
+
+.fc-day-blocked::after {
+content: "Blocked";
+position: absolute;
+top: 5px;
+right: 5px;
+background-color: #e8e8e8 !important;
+color: white;
+padding: 2px 5px;
+border-radius: 3px;
+font-size: 12px;
+}
+
+/* New styles for blocked date tooltip */
+.blocked-date-tooltip {
+background-color: #e8e8e8 !important;
+border-left: 4px solid #dc3545;
+border-radius: 4px;
+box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+color: #333;
+font-size: 14px;
+max-width: 250px;
+padding: 10px 12px;
+z-index: 1000;
 }
 </style>
