@@ -377,6 +377,15 @@
                 </span>
               </div>
             </div>
+            <div class="info-group">
+              <i class="bx bx-wallet"></i>
+              <div>
+                <label>Remarks:</label>
+                <span :class="getBalanceClass(selectedBilling.Remarks)">
+                  <span>{{ selectedBilling.Remarks }}</span>
+                </span>
+              </div>
+            </div>
             <div v-if="selectedBilling.IsStandalonePayment" class="info-group standalone-note">
               <i class="bx bx-info-circle"></i>
               <div>
@@ -549,6 +558,7 @@ methods: {
         Credit: entry.Credit || 0,
         ComputedBalance: entry.Balance || 0,
         Reference: entry.Reference,
+        Remarks: entry.Remarks || entry.Notes || 'N/A', // Add this line - map Remarks field
         IsStandalonePayment: entry.IsStandalonePayment || false,
       }));
 
