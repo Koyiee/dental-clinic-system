@@ -861,7 +861,7 @@
       </div>
       <div class="service-info">
         <h4>{{ service.ServiceName }}</h4>
-        <p class="service-price">₱{{ getServiceCost(service.ServiceName) }}</p>
+        <!-- <p class="service-price">₱{{ getServiceCost(service.ServiceName) }}</p> -->
       </div>
       <div class="service-check" v-if="selectedServices.includes(service.ServiceName)">
         <i class='bx bx-check'></i>
@@ -883,15 +883,15 @@
                 <div class="summary-items">
                   <div v-for="(service, index) in selectedServices" :key="index" class="summary-item">
                     <span class="item-name">{{ service }}</span>
-                    <span class="item-price">₱{{ getServiceCost(service) }}</span>
+                    <!-- <span class="item-price">₱{{ getServiceCost(service) }}</span> -->
                   </div>
                 </div>
                 <div class="summary-divider"></div>
                 <div class="summary-total">
-                  <span>Total</span>
-                  <span class="total-price">₱{{ totalCost }}</span>
+                  <!-- <span>Total</span> -->
+                  <!-- <span class="total-price">₱{{ totalCost }}</span> -->
                 </div>
-                <p class="summary-disclaimer"><b>Prices may vary based on additional factors</b></p>
+                <!-- <p class="summary-disclaimer"><b>Prices may vary based on additional factors</b></p> -->
               </div>
             </div>
 
@@ -1004,7 +1004,7 @@
               </div>
             </div>
             
-            <div class="confirmation-section">
+            <!-- <div class="confirmation-section">
               <h3 class="section-title">PAYMENT DETAILS</h3>
               <div class="section-content">
                 <div class="payment-row">
@@ -1012,13 +1012,13 @@
                   <span>₱ {{ totalCost.toFixed(2) }}</span>
                 </div>
               </div>
-            </div>
+            </div> -->
 
-            <div class="note-message">
+            <!-- <div class="note-message">
               <i class="bx bx-error">
                 <span> Prices may vary based on actual conditions.</span>
               </i>
-            </div>
+            </div> -->
             
             <div class="secure-message">
               <i class="bx bx-shield-quarter"></i>
@@ -1089,6 +1089,7 @@
         <FullCalendar
           :events="events"
           :options="calendarOptions"
+          :key="calendarKey"
         />
       </div>
     </div>
@@ -1112,6 +1113,7 @@ export default defineComponent({
   },
   data() {
     return {
+      calendarKey: 0,
       profilePicture: sessionStorage.getItem('user_profile_picture') || this.profilePicture,
       currentFormStep: 'consent',
       consentSections: [
@@ -1288,6 +1290,7 @@ export default defineComponent({
       },
       appointmentId: null,
       blockedDates: [],
+      blockedDateReasons: {},
     };
   },
   mounted() {
@@ -1338,9 +1341,9 @@ export default defineComponent({
       const response = await axios.get('/api/patient-data');
       if (response.data.success) {
         this.profilePicture = response.data.patient.profilePicture;
-        console.log('Fetched Profile Picture:', this.profilePicture);
+        //console.log('Fetched Profile Picture:', this.profilePicture);
       } else {
-        console.error('Failed to fetch patient data:', response.data.message);
+        //console.error('Failed to fetch patient data:', response.data.message);
         Swal.fire({
           icon: 'error',
           title: 'Error',
@@ -1355,7 +1358,7 @@ export default defineComponent({
         });
       }
     } catch (error) {
-      console.error('Error fetching patient data:', error);
+      //console.error('Error fetching patient data:', error);
       Swal.fire({
         icon: 'error',
         title: 'Error',
@@ -1415,17 +1418,58 @@ export default defineComponent({
       }
     },
     async fetchBlockedDates() {
-      try {
-        const response = await axios.get('/appointments/blocked-dates', {
-          withCredentials: true,
-        });
-        this.blockedDates = response.data.map(date => date.Date);
-        console.log("Blocked Dates:", this.blockedDates);
-      } catch (error) {
-        console.error("Error fetching blocked dates:", error);
-        this.openInfoModal("Failed to fetch blocked dates. Some dates may be unavailable.");
+  try {
+    const response = await axios.get('/appointments/blocked-dates', {
+      withCredentials: true,
+    });
+    
+    // console.log("Raw blocked dates from backend:", response.data);
+    
+    // Process each date with proper timezone handling for Asia/Manila
+    this.blockedDates = response.data.map(date => {
+      // console.log("Processing date:", date.Date);
+      
+      // Handle different possible date formats from backend
+      let processedDate;
+      
+      if (date.Date.includes('T')) {
+        // If it's a full datetime string like '2024-01-27T00:00:00.000Z'
+        const utcDate = new Date(date.Date);
+        console.log("UTC Date object:", utcDate);
+        console.log("UTC ISO String:", utcDate.toISOString());
+        
+        // Convert to Asia/Manila timezone
+        const manilaDate = new Date(utcDate.toLocaleString("en-US", {timeZone: "Asia/Manila"}));
+        console.log("Manila Date object:", manilaDate);
+        
+        // Format as YYYY-MM-DD
+        const year = manilaDate.getFullYear();
+        const month = String(manilaDate.getMonth() + 1).padStart(2, '0');
+        const day = String(manilaDate.getDate()).padStart(2, '0');
+        processedDate = `${year}-${month}-${day}`;
+      } else {
+        // If it's already in YYYY-MM-DD format
+        processedDate = date.Date;
       }
-    },
+      
+      // console.log("Processed date:", processedDate);
+      return processedDate;
+    });
+    
+    this.blockedDateReasons = response.data.reduce((acc, date, index) => {
+      const processedDate = this.blockedDates[index];
+      acc[processedDate] = date.Reason || 'Date is blocked';
+      return acc;
+    }, {});
+    
+    //console.log("Final Blocked Dates:", this.blockedDates);
+    //console.log("Final Blocked Date Reasons:", this.blockedDateReasons);
+    this.calendarKey = (this.calendarKey || 0) + 1;
+  } catch (error) {
+    console.error("Error fetching blocked dates:", error);
+    this.openInfoModal("Failed to fetch blocked dates. Some dates may be unavailable.");
+  }
+},
     formatTimeDisplay(time) {
       if (!time) return '';
       const [hours, minutes] = time.split(':');
@@ -1582,30 +1626,30 @@ export default defineComponent({
     async fetchServices() {
       try {
         const response = await axios.get('/services/list?active_only=true');
-        console.log("Services Response:", response.data);
+        //console.log("Services Response:", response.data);
         this.services = response.data;
         this.availableServices = [...this.services];
-        console.log("Available Services:", this.availableServices);
+        //console.log("Available Services:", this.availableServices);
         if (this.availableServices.length === 0) {
           this.openInfoModal("No active services are available at this time.");
         }
       } catch (error) {
-        console.error("Error fetching services:", error);
+        //console.error("Error fetching services:", error);
         this.openInfoModal("Failed to fetch services. Please try again.");
       }
     },
     async fetchDentists() {
       try {
         const response = await axios.get('/get-dentists');
-        console.log("Raw /get-dentists response:", response.data);
+        //console.log("Raw /get-dentists response:", response.data);
         this.dentists = response.data.map(dentist => ({
           DentistID: dentist.DentistID,
           Name: dentist.Name,
           isUnavailable: false
         }));
-        console.log("Processed Dentists:", this.dentists);
+        //console.log("Processed Dentists:", this.dentists);
       } catch (error) {
-        console.error('Error fetching dentists:', error);
+        //console.error('Error fetching dentists:', error);
         this.error = 'Failed to fetch dentists. Please try again later.';
       }
     },
@@ -1614,7 +1658,7 @@ export default defineComponent({
         const response = await axios.get('/get-patient-id');
         this.form.PatientID = response.data.patient_id;
       } catch (error) {
-        console.error('Error fetching patient ID:', error);
+        //console.error('Error fetching patient ID:', error);
         this.error = 'Failed to fetch patient ID. Please log in again.';
       }
     },
@@ -1651,7 +1695,7 @@ export default defineComponent({
     },
     async finalizeBooking() {
       try {
-        console.log("Sending appointment data:", this.form);
+        //console.log("Sending appointment data:", this.form);
         if (this.form.DentistID === "any") {
           this.form.DentistID = null;
         } else {
@@ -1694,10 +1738,10 @@ export default defineComponent({
           headers: { 'Content-Type': 'application/json' },
           withCredentials: true,
         });
-        console.log("Appointment response:", response.data);
+        //console.log("Appointment response:", response.data);
         if (response.status === 200 || response.status === 201) {
           this.appointmentId = response.data.appointment?.AppointmentID;
-          console.log("Extracted AppointmentID:", this.appointmentId);
+          //console.log("Extracted AppointmentID:", this.appointmentId);
           if (!this.appointmentId) {
             throw new Error("AppointmentID not found in response");
           }
@@ -1708,13 +1752,13 @@ export default defineComponent({
           this.resetForm();
         }
       } catch (error) {
-        console.error("Error saving appointment or consent form:", error);
+        //console.error("Error saving appointment or consent form:", error);
         const errorMessage = error.response?.data?.message || error.message || "An error occurred while confirming the appointment.";
-        console.log("Error details:", {
-          status: error.response?.status,
-          data: error.response?.data,
-          message: errorMessage,
-        });
+        // console.log("Error details:", {
+        //   status: error.response?.status,
+        //   data: error.response?.data,
+        //   message: errorMessage,
+        // });
         this.openInfoModal(errorMessage);
         this.isConfirmModalOpen = false;
       }
@@ -2012,7 +2056,7 @@ export default defineComponent({
           }
         }
         const pdfBlob = doc.output('blob');
-        console.log('PDF Blob created:', pdfBlob);
+        //console.log('PDF Blob created:', pdfBlob);
         const formData = new FormData();
         formData.append('PatientID', this.form.PatientID);
         formData.append('AppointmentID', appointmentId);
@@ -2023,16 +2067,16 @@ export default defineComponent({
           headers: { 'Content-Type': 'multipart/form-data' },
           withCredentials: true,
         });
-        console.log('PDF saved successfully:', uploadResponse.data);
+        //console.log('PDF saved successfully:', uploadResponse.data);
         return true;
       } catch (error) {
-        console.error('Error generating or saving PDF:', error);
+        //console.error('Error generating or saving PDF:', error);
         const errorMessage = error.response?.data?.message || error.message || 'Failed to generate or save the consent form and questionnaire PDF.';
-        console.log("PDF error details:", {
-          status: error.response?.status,
-          data: error.response?.data,
-          message: errorMessage,
-        });
+        // console.log("PDF error details:", {
+        //   status: error.response?.status,
+        //   data: error.response?.data,
+        //   message: errorMessage,
+        // });
         this.openInfoModal(errorMessage);
         throw error;
       }
@@ -2054,37 +2098,60 @@ export default defineComponent({
       const tomorrow = new Date(today);
       tomorrow.setDate(today.getDate() + 1);
       const dateString = info.dateStr;
-      if (clickedDate < today || clickedDate.toDateString() === today.toDateString() || clickedDate.toDateString() === tomorrow.toDateString()) {
+
+      // Check if the selected date is a Sunday
+      if (clickedDate.getDay() === 0) {
+        this.openInfoModal("The clinic is closed on Sundays. Please select a different date.");
+        return;
+      }
+
+      // Check for past dates, today, or tomorrow
+      if (
+        clickedDate < today ||
+        clickedDate.toDateString() === today.toDateString() ||
+        clickedDate.toDateString() === tomorrow.toDateString()
+      ) {
         this.openInfoModal("Bookings must be made 2 days in advance. Please select a different date.");
         return;
       }
+
+      // Check for blocked dates
       if (this.blockedDates.includes(dateString)) {
-        this.openInfoModal("This date is blocked and unavailable for booking.");
+        const reason = this.blockedDateReasons[dateString];
+        const message = reason ? `This date is blocked because ${reason}` : "This date is blocked and unavailable for booking.";
+        this.openInfoModal(message);
         return;
       }
+
       try {
+        // Check if the patient already has an appointment on the selected date
         const response = await axios.get('/check-appointment-date', {
           params: { date: info.dateStr },
-          withCredentials: true
+          withCredentials: true,
         });
         if (response.data.hasAppointment) {
           this.openInfoModal(response.data.message);
           return;
         }
+
+        // Fetch dentist availability
         const availabilityResponse = await axios.get(`/dentist-availability/${info.dateStr}`, {
-          withCredentials: true
+          withCredentials: true,
         });
         this.unavailableDentistIDs = availabilityResponse.data.unavailable_dentists;
-        console.log("Date Selected:", info.dateStr);
-        console.log("Unavailable Dentists (DentistIDs):", this.unavailableDentistIDs);
+        //console.log("Date Selected:", info.dateStr);
+        //console.log("Unavailable Dentists (DentistIDs):", this.unavailableDentistIDs);
+
+        // Update dentist availability
         this.dentists.forEach(dentist => {
-          dentist.isUnavailable = false;
           dentist.isUnavailable = this.unavailableDentistIDs.includes(dentist.DentistID);
-          console.log(`Dentist: ${dentist.Name}, DentistID: ${dentist.DentistID}, isUnavailable: ${dentist.isUnavailable}`);
+          //console.log(`Dentist: ${dentist.Name}, DentistID: ${dentist.DentistID}, isUnavailable: ${dentist.isUnavailable}`);
         });
+
+        // Proceed to time selection
         this.selectDate(info.dateStr);
       } catch (error) {
-        console.error("Error checking date or dentist availability:", error);
+        //console.error("Error checking date or dentist availability:", error);
         this.openInfoModal("Failed to check date availability. Please try again.");
       }
     },
@@ -2114,14 +2181,14 @@ export default defineComponent({
     selectDate(date) {
       this.form.AppointmentDate = date;
       this.subStep = 'time';
-      console.log("subStep:", this.subStep);
+      //console.log("subStep:", this.subStep);
       this.generateAvailableTimes();
     },
     setSubStep(step) {
       this.subStep = step;
     },
     generateAvailableTimes() {
-      console.log("Generating available times for date:", this.form.AppointmentDate);
+      //console.log("Generating available times for date:", this.form.AppointmentDate);
       const times = [];
       let startTime = 9;
       const endTime = 16;
@@ -2130,17 +2197,17 @@ export default defineComponent({
         times.push({ time: formattedTime, is_available: true });
       }
       this.availableTimes = times;
-      console.log("Generated times:", this.availableTimes);
+      //console.log("Generated times:", this.availableTimes);
       this.filterTimesFromBackend();
     },
     async filterTimesFromBackend() {
-      console.log("Filtering available times for date:", this.form.AppointmentDate);
+      //console.log("Filtering available times for date:", this.form.AppointmentDate);
       try {
         const payload = {
           date: this.form.AppointmentDate,
           times: this.availableTimes.map(slot => slot.time),
         };
-        console.log("Request payload:", payload);
+        //console.log("Request payload:", payload);
         const response = await axios.post('/filter-available-times', payload, {
           withCredentials: true,
         });
@@ -2152,9 +2219,9 @@ export default defineComponent({
             is_available: updatedSlot ? updatedSlot.is_available : false,
           };
         });
-        console.log("Updated time slots:", this.availableTimes);
+        //console.log("Updated time slots:", this.availableTimes);
       } catch (error) {
-        console.error("Error filtering available times:", error.response?.data || error.message);
+        //console.error("Error filtering available times:", error.response?.data || error.message);
         this.openInfoModal("Failed to filter available times. Showing all times as a fallback.");
         this.availableTimes = this.availableTimes.map(slot => ({
           time: slot.time,
@@ -2192,10 +2259,10 @@ export default defineComponent({
               withCredentials: true,
             });
             dentist.isUnavailable = !response.data.is_available;
-            console.log(`Dentist ${dentist.Name} (ID: ${dentist.DentistID}) isUnavailable: ${dentist.isUnavailable}`);
+            //console.log(`Dentist ${dentist.Name} (ID: ${dentist.DentistID}) isUnavailable: ${dentist.isUnavailable}`);
           }
         } catch (error) {
-          console.error("Error checking dentist availability:", error);
+          //console.error("Error checking dentist availability:", error);
           this.openInfoModal("Failed to check dentist availability. Please try again.");
           return;
         }
@@ -2244,62 +2311,102 @@ export default defineComponent({
         });
         if (response.data.is_available) {
           this.form.DentistID = dentistId;
-          console.log(`Selected Dentist: ${dentist.Name}, DentistID: ${dentistId}`);
+          //console.log(`Selected Dentist: ${dentist.Name}, DentistID: ${dentistId}`);
         } else {
           dentist.isUnavailable = true;
           this.openInfoModal(`${dentist.Name} is unavailable for the selected time and duration.`);
         }
       } catch (error) {
-        console.error("Error checking dentist availability:", error);
+        //console.error("Error checking dentist availability:", error);
         this.openInfoModal("Failed to check dentist availability. Please try again.");
       }
     },
   },
   setup(props, { expose }) {
-    const isDateDisabled = (date) => {
+  const blockedDates = ref([]);
+  const blockedDateReasons = ref({});
+
+  const calendarOptions = ref({
+    plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin],
+    initialView: 'dayGridMonth',
+    height: 'auto',
+    headerToolbar: {
+      left: 'prev,next today',
+      center: 'title',
+      right: 'dayGridMonth,timeGridWeek,timeGridDay',
+    },
+    buttonText: {
+      today: 'Today',
+      month: 'Month',
+      week: 'Week',
+      day: 'Day',
+    },
+    dateClick: null, // Bound in mounted()
+    eventClick: (info) => {
+      alert('Event clicked: ' + info.event.title);
+    },
+    dayCellDidMount: (arg) => {
+      // Ensure consistent date formatting - use local date
+      const year = arg.date.getFullYear();
+      const month = String(arg.date.getMonth() + 1).padStart(2, '0');
+      const day = String(arg.date.getDate()).padStart(2, '0');
+      const dateString = `${year}-${month}-${day}`;
+      
       const today = new Date();
-      const tomorrow = new Date();
+      const tomorrow = new Date(today);
       tomorrow.setDate(today.getDate() + 1);
-      const clickedDate = new Date(date);
-      return (
+      const clickedDate = new Date(arg.date);
+
+      // Apply disabled-date class for past dates, today, or tomorrow
+      if (
         clickedDate < today ||
         clickedDate.toDateString() === today.toDateString() ||
         clickedDate.toDateString() === tomorrow.toDateString()
-      );
-    };
-    const calendarOptions = ref({
-      plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin],
-      initialView: 'dayGridMonth',
-      height: 'auto',
-      headerToolbar: {
-        left: 'prev,next today',
-        center: 'title',
-        right: 'dayGridMonth,timeGridWeek,timeGridDay',
-      },
-      buttonText: {
-        today: 'Today',
-        month: 'Month',
-        week: 'Week',
-        day: 'Day',
-      },
-      dateClick: null,
-      eventClick: (info) => {
-        alert('Event clicked: ' + info.event.title);
-      },
-      dayCellClassNames: (arg) => {
-        const today = new Date();
-        const clickedDate = new Date(arg.date);
-        const dateString = arg.date.toISOString().split('T')[0];
-        if (clickedDate < today) {
-          return ['disabled-date'];
-        }
-        return [];
-      },
-    });
-    return {
-      calendarOptions,
-    };
-  },
+      ) {
+        arg.el.classList.add('disabled-date');
+      }
+
+      // Apply sunday-blocked class for Sundays
+      if (clickedDate.getDay() === 0) {
+        arg.el.classList.add('sunday-blocked');
+      }
+
+      // Apply fc-day-blocked class and tooltip for blocked dates
+      if (blockedDates.value.includes(dateString)) {
+        arg.el.classList.add('fc-day-blocked');
+        const reason = blockedDateReasons.value[dateString] || 'Date is blocked';
+        
+        // Create tooltip element
+        const tooltip = document.createElement('div');
+        tooltip.className = 'blocked-date-tooltip';
+        tooltip.textContent = reason;
+        tooltip.style.display = 'none';
+        arg.el.appendChild(tooltip);
+
+        // Show tooltip on hover
+        arg.el.addEventListener('mouseenter', () => {
+          const rect = arg.el.getBoundingClientRect();
+          tooltip.style.display = 'block';
+          tooltip.style.top = `${rect.top - 40}px`;
+          tooltip.style.left = `${rect.left + rect.width / 2}px`;
+          tooltip.style.transform = 'translateX(-50%)';
+        });
+
+        arg.el.addEventListener('mouseleave', () => {
+          tooltip.style.display = 'none';
+        });
+      }
+    },
+  });
+
+  expose({ blockedDates, blockedDateReasons });
+
+  return {
+    calendarOptions,
+    blockedDates,
+    blockedDateReasons,
+  };
+},
 });
 </script>
 
@@ -4381,6 +4488,29 @@ input[type="radio"]:checked::after {
     overflow-y: auto;
   }
 }
+
+/* .fc-day-blocked {
+  background-color: #e8e8e8 !important;
+  pointer-events: none;
+  color: #999 !important;
+  opacity: 0.6;
+  position: relative;
+} */
+
+/* .fc-day-blocked::after {
+  content: "Blocked";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 10px;
+  color: white;
+  font-weight: 500;
+  padding: 2px 5px;
+  border-radius: 3px;
+  background-color: #dc3545;
+} */
+
 </style>
 
 <style>
@@ -4409,6 +4539,62 @@ input[type="radio"]:checked::after {
 .fc .fc-daygrid-day.fc-day-selected {
   background-color: rgba(6, 105, 58, 0.2) !important;
   border: 2px solid #06693a !important;
+}
+
+/* Blocked dates */
+.fc .fc-daygrid-day.fc-day-blocked {
+  background-color: #e8e8e8 !important;
+  pointer-events: none;
+  color: #999 !important;
+  opacity: 0.6;
+  position: relative;
+}
+
+.fc .fc-daygrid-day.fc-day-blocked::after {
+  content: "Blocked";
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  background-color: #e74c3c !important; /* Red for visibility */
+  color: white;
+  padding: 2px 5px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+/* Sundays */
+.fc .fc-daygrid-day.sunday-blocked {
+  background-color: #e8e8e8 !important;
+  pointer-events: none;
+  color: #999 !important;
+  opacity: 0.6;
+  position: relative;
+}
+
+.fc .fc-daygrid-day.sunday-blocked::after {
+  content: "Closed";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: #06693a !important; /* Green to match theme */
+  color: white;
+  padding: 2px 5px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+/* Blocked date tooltip */
+.fc .blocked-date-tooltip {
+  background-color: #f0f0f0 !important; /* Matches disabled-date background */
+  border-left: 4px solid #e74c3c; /* Red border for blocked dates */
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  color: #333;
+  font-size: 14px;
+  max-width: 250px;
+  padding: 10px 12px;
+  z-index: 1000;
 }
 
 /* Calendar header styling */
@@ -4489,6 +4675,11 @@ input[type="radio"]:checked::after {
   
   .fc-col-header-cell {
     width: auto !important;
+  }
+
+  .fc .fc-daygrid-day.fc-day-blocked::after,
+  .fc .fc-daygrid-day.sunday-blocked::after {
+    font-size: 10px !important; /* Adjust label size for mobile */
   }
 }
 </style>
