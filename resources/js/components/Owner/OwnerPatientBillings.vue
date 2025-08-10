@@ -497,7 +497,7 @@
               <th style="padding-left: 25px;">Patient Name</th>
               <th>Appointment Date/Time</th>
               <th>Procedure</th>
-              <th>Amount</th>
+              <!-- <th>Amount</th> -->
               <th class="actions-header">Actions</th>
             </tr>
           </thead>
@@ -511,7 +511,7 @@
               <td style="padding-left: 25px;">{{ billing.PatientName }}</td>
               <td>{{ formatDateTime(billing.AppointmentDateTime) }}</td>
               <td>{{ billing.Procedure }}</td>
-              <td>{{ formatNumber(billing.Balance) }}</td>
+              <!-- <td>{{ formatNumber(billing.Balance) }}</td> -->
               <td class="actions-cell" @click.stop>
                 <button 
                   class="edit-button" 
@@ -623,125 +623,127 @@
             </div>
             <div class="form-section">
               <div v-if="selectedBilling.services && selectedBilling.services.length > 0">
+                <!-- Individual Service Price Inputs Only -->
                 <div v-for="(service, index) in selectedBilling.services" :key="index" class="service-detail">
                   <div class="service-header">
                     <div class="service-name">{{ service.ServiceName }}</div>
                   </div>
                   <div class="service-controls">
                     <div class="form-group">
-  <label>Price</label>
-  <div class="input-with-icon">
-    <span class="currency-symbol">₱</span>
-    <input
-      v-model.number="selectedBilling.TotalAmount"
-      type="number"
-      min="0"
-      step="0.01"
-      @input="setServicePrice(service, $event.target.value)"
-      :disabled="isViewOnly || service.PaymentStatus === 'Paid'"
-    />
-  </div>
-  <div v-if="isInsuranceMethod(service) && !hasCostChanged(service)" class="cost-change-warning">
-    <span class="warning-text">Price must be changed for insurance payment.</span>
-  </div>
-                      <!-- <div class="form-group">
-                        <label>Discount</label>
-                        <div class="input-with-icon">
-                          <span class="currency-symbol">₱</span>
-                          <input
-                            v-model.number="service.Discount"
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            placeholder="Enter discount"
-                            :disabled="isViewOnly || service.PaymentStatus === 'Paid'"
-                            @input="updateTotalAmount"
-                          />
-                        </div>
-                      </div> -->
-                      <br>
-                    </div>
-                    <div class="form-row">
-                      <div class="form-group">
-                        <label>Payment Method</label>
-                        <select 
-                          v-model="service.PaymentMethod" 
-                          @change="updateServicePaymentMethod(service)"
-                          :disabled="isViewOnly"
-                        >
-                          <option value="">Select payment method</option>
-                          <option 
-                            v-for="method in getAvailablePaymentMethods(service, index)" 
-                            :key="method.MethodName" 
-                            :value="method.MethodName"
-                          >
-                            {{ method.MethodName }}
-                          </option>
-                        </select>
-                      </div>
-                      <div class="form-group">
-                        <label>Amount Paid</label>
-                        <div class="input-with-icon">
-                          <span class="currency-symbol">₱</span>
-                          <input 
-                            v-model.number="service.AmountPaid" 
-                            type="number" 
-                            min="0" 
-                            step="0.01" 
-                            @input="handleServiceAmountPaidInput(service)"
-                            :readonly="isViewOnly || isInsuranceMethod(service)"
-                            :class="{ 'readonly-field': isInsuranceMethod(service) }"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <!-- Show individual Reference ID field only if payment methods differ -->
-                    <div class="form-row" v-if="shouldShowIndividualReferenceInput(service, index)">
-                      <div class="form-group">
-                        <label>Reference ID</label>
-                        <input 
-                          v-model="service.ReferenceID" 
-                          type="text" 
-                          :placeholder="getServiceReferenceIdPlaceholder(service.PaymentMethod)"
-                          @input="validateServiceReferenceID(service)"
-                          :maxlength="getServiceReferenceIdMaxLength(service.PaymentMethod)"
-                          :readonly="isViewOnly"
-                          :disabled="isReferenceIdDisabled(service, index)"
+                      <label>Price</label>
+                      <div class="input-with-icon">
+                        <span class="currency-symbol">₱</span>
+                        <input
+                          v-model.number="service.userInputPrice"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          @input="setServicePrice(service, $event.target.value)"
+                          :disabled="isViewOnly || service.PaymentStatus === 'Paid'"
                         />
                       </div>
-                      <div class="form-group" v-if="service.PaymentMethod === 'Cash' && (Number(service.AmountPaid) || 0) > (Number(service.Cost) - (Number(service.Discount) || 0))">
-                        <label>Change</label>
-                        <div class="input-with-icon">
-                          <span class="currency-symbol">₱</span>
-                          <input 
-                            v-model.number="service.Change" 
-                            type="number" 
-                            step="0.01" 
-                            readonly 
-                            class="readonly-field" 
-                          />
-                        </div>
+                      <div v-if="isInsuranceMethod(service) && !hasCostChanged(service)" class="cost-change-warning">
+                        <span class="warning-text">Price must be changed for insurance payment.</span>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                <!-- Shared Reference ID field when payment methods are the same -->
-                <div class="form-row" v-if="shouldShowSharedReferenceInput">
-                  <div class="form-group full-width">
-                    <label>Reference ID</label>
-                    <input 
-                      v-model="sharedReferenceID" 
-                      type="text" 
-                      :placeholder="getServiceReferenceIdPlaceholder(selectedBilling.services[0].PaymentMethod)"
-                      @input="updateSharedReferenceID"
-                      :maxlength="getServiceReferenceIdMaxLength(selectedBilling.services[0].PaymentMethod)"
-                      :readonly="isViewOnly"
-                    />
+                <!-- Total Price Section (only show if multiple services) -->
+                <div v-if="selectedBilling.services && selectedBilling.services.length > 1" class="payment-total-section">
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label>Total Price</label>
+                      <div class="input-with-icon">
+                        <span class="currency-symbol">₱</span>
+                        <input 
+                          :value="formatNumber(calculatedTotalAmount)"
+                          readonly 
+                          class="readonly-field total-amount-field"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                <!-- Add Remarks and Status Section -->
+                <!-- Single Payment Method and Amount Section -->
+                <!-- Use the first service's payment method as the representative for all -->
+                <div class="payment-method-section">
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label>Payment Method</label>
+                      <select 
+                        v-model="selectedBilling.services[0].PaymentMethod" 
+                        @change="syncPaymentMethodToAllServices"
+                      >
+                        <option value="">Select payment method</option>
+                        <option 
+                          v-for="method in getAvailablePaymentMethods(selectedBilling.services[0], 0)" 
+                          :key="method.MethodName" 
+                          :value="method.MethodName"
+                        >
+                          {{ method.MethodName }}
+                        </option>
+                      </select>
+                    </div>
+                    <div class="form-group">
+                      <label>Amount Paid</label>
+                      <div class="input-with-icon">
+                        <span class="currency-symbol">₱</span>
+                        <input 
+                          v-model.number="totalAmountPaidInput" 
+                          type="number" 
+                          min="0" 
+                          step="0.01" 
+                          @input="syncAmountPaidToAllServices"
+                          :readonly="isViewOnly || isInsuranceMethod(selectedBilling.services[0])"
+                          :class="{ 'readonly-field': isInsuranceMethod(selectedBilling.services[0]) }"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <!-- Reference ID Section -->
+                  <div class="form-row" v-if="shouldShowIndividualReferenceInput(selectedBilling.services[0], 0) || shouldShowSharedReferenceInput">
+                    <div class="form-group">
+                      <label>Reference ID</label>
+                      <input 
+                        v-if="shouldShowSharedReferenceInput"
+                        v-model="sharedReferenceID" 
+                        type="text" 
+                        :placeholder="getServiceReferenceIdPlaceholder(selectedBilling.services[0].PaymentMethod)"
+                        @input="updateSharedReferenceID"
+                        :maxlength="getServiceReferenceIdMaxLength(selectedBilling.services[0].PaymentMethod)"
+                        :readonly="isViewOnly"
+                      />
+                      <input 
+                        v-else
+                        v-model="selectedBilling.services[0].ReferenceID" 
+                        type="text" 
+                        :placeholder="getServiceReferenceIdPlaceholder(selectedBilling.services[0].PaymentMethod)"
+                        @input="validateServiceReferenceID(selectedBilling.services[0])"
+                        :maxlength="getServiceReferenceIdMaxLength(selectedBilling.services[0].PaymentMethod)"
+                        :readonly="isViewOnly"
+                        :disabled="isReferenceIdDisabled(selectedBilling.services[0], 0)"
+                      />
+                    </div>
+                    <div class="form-group" v-if="selectedBilling.services[0].PaymentMethod === 'Cash' && (Number(selectedBilling.services[0].AmountPaid) || 0) > (Number(selectedBilling.services[0].Cost) - (Number(selectedBilling.services[0].Discount) || 0))">
+                      <label>Change</label>
+                      <div class="input-with-icon">
+                        <span class="currency-symbol">₱</span>
+                        <input 
+                          v-model.number="selectedBilling.services[0].Change" 
+                          type="number" 
+                          step="0.01" 
+                          readonly 
+                          class="readonly-field" 
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Remarks and Status Section -->
                 <div class="form-row">
                   <div class="form-group full-width">
                     <label>Remarks (Optional)</label>
@@ -765,125 +767,117 @@
           </div>
 
           <!-- Payment Summary Section (for Paid tab) -->
-          <div v-if="isFromPaidTab">
-            <div class="section-header">
-              <i class='bx bx-credit-card'></i>
-              <h4>Payment Summary</h4>
-            </div>
-            <div class="form-section">
-              <div v-if="selectedBilling.services && selectedBilling.services.length > 0">
-                <div v-for="(service, index) in selectedBilling.services" :key="index" class="service-payment-detail">
-                  <div class="service-header">
-                    <div class="service-name">{{ service.ServiceName }}</div>
-                  </div>
-                  <div class="form-row">
-                    <div class="form-group">
-                      <label>Price</label>
-                      <div class="input-with-icon">
-                        <span class="currency-symbol">₱</span>
-                        <input 
-                          :value="formatNumber(calculatedTotalAmount)"  
-                          readonly 
-                          class="readonly-field" 
-                        />
-                      </div>
-                    </div>
-                    <div class="form-group">
-                      <label>Amount Paid</label>
-                      <div class="input-with-icon">
-                        <span class="currency-symbol">₱</span>
-                        <input 
-                          :value="formatNumber(service.AmountPaid)" 
-                          readonly 
-                          class="readonly-field" 
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  <div class="form-row">
-                    <div class="form-group">
-                      <label>Payment Method</label>
-                      <input 
-                        :value="service.PaymentMethod || 'N/A'" 
-                        readonly 
-                        class="readonly-field" 
-                      />
-                    </div>
-                    <div class="form-group" v-if="shouldShowServiceReferenceInput(service)">
-                      <label>Reference ID</label>
-                      <input 
-                        :value="service.ReferenceID || 'N/A'" 
-                        readonly 
-                        class="readonly-field" 
-                      />
-                    </div>
-                    <div class="form-group" v-else></div>
-                  </div>
-                  <div class="form-row" v-if="service.Change > 0">
-                    <div class="form-group">
-                      <label>Change</label>
-                      <div class="input-with-icon">
-                        <span class="currency-symbol">₱</span>
-                        <input 
-                          :value="formatNumber(service.Change)" 
-                          readonly 
-                          class="readonly-field" 
-                        />
-                      </div>
-                    </div>
-                    <div class="form-group"></div>
-                  </div>
-                </div>
-                <div class="payment-summary-total">
-                  <!-- <div class="form-row">
-                    <div class="form-group">
-                      <label>Total Amount</label>
-                      <div class="input-with-icon">
-                        <span class="currency-symbol">₱</span>
-                        <input 
-                          :value="formatNumber(selectedBilling.TotalAmount)" 
-                          readonly 
-                          class="readonly-field" 
-                        />
-                      </div>
-                    </div>
-                    <div class="form-group">
-                      <label>Total Amount Paid</label>
-                      <div class="input-with-icon">
-                        <span class="currency-symbol">₱</span>
-                        <input 
-                          :value="formatNumber(selectedBilling.AmountPaid)" 
-                          readonly 
-                          class="readonly-field" 
-                        />
-                      </div>
-                    </div>
-                  </div> -->
-                </div>
-              </div>
-              <div v-else class="no-services">No payment details available</div>
-
-              <!-- Status and Remarks -->
-              <div class="form-row">
-                <div class="form-group full-width">
-                  <label>Remarks (Optional)</label>
-                  <textarea
-                    v-model="selectedBilling.Remarks"
-                    rows="3"
-                    readonly
-                    class="readonly-field"
-                  ></textarea>
-                </div>
-                <div class="form-group">
-                  <label>Status</label>
-                  <div class="status-display">
-                    <span class="status-badge paid">Paid</span>
-                    <span class="status-message">This billing has been paid</span>
-                  </div>
-                </div>
-              </div>
+<div v-if="isFromPaidTab">
+  <div class="section-header">
+    <i class='bx bx-credit-card'></i>
+    <h4>Payment Summary</h4>
+  </div>
+  <div class="form-section">
+    <div v-if="selectedBilling.services && selectedBilling.services.length > 0">
+      <!-- Individual Service Payment Details -->
+      <div v-for="(service, index) in selectedBilling.services" :key="index" class="service-detail">
+        <div class="service-header">
+          <div class="service-name">{{ service.ServiceName }}</div>
+        </div>
+        <div class="service-controls">
+          <div class="form-group">
+            <label>Amount Paid</label>
+            <div class="input-with-icon">
+              <span class="currency-symbol">₱</span>
+              <input
+                :value="formatNumber(service.AmountPaid)"
+                type="number"
+                readonly
+                class="readonly-field"
+              />
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- Total Amount Paid Section (only show if multiple services) -->
+      <div v-if="selectedBilling.services && selectedBilling.services.length > 1" class="payment-total-section">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Total Amount Paid</label>
+            <div class="input-with-icon">
+              <span class="currency-symbol">₱</span>
+              <input 
+                :value="formatNumber(selectedBilling.services.reduce((sum, service) => sum + (Number(service.AmountPaid) || 0), 0))"
+                readonly 
+                class="readonly-field total-amount-field"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <br>
+
+      <!-- Payment Method and Reference ID Section -->
+      <div class="payment-method-section">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Payment Method</label>
+            <input 
+              :value="selectedBilling.services[0].PaymentMethod || 'N/A'" 
+              readonly 
+              class="readonly-field" 
+            />
+          </div>
+          <div class="form-group" v-if="shouldShowServiceReferenceInput(selectedBilling.services[0])">
+            <label>Reference ID</label>
+            <input 
+              :value="selectedBilling.services[0].ReferenceID || 'N/A'" 
+              readonly 
+              class="readonly-field" 
+            />
+          </div>
+          <div class="form-group" v-else></div>
+        </div>
+        
+        <!-- Change Section (if applicable) -->
+        <div class="form-row" v-if="selectedBilling.services[0].PaymentMethod === 'Cash' && selectedBilling.services[0].Change > 0">
+          <div class="form-group">
+            <label>Change</label>
+            <div class="input-with-icon">
+              <span class="currency-symbol">₱</span>
+              <input 
+                :value="formatNumber(selectedBilling.services[0].Change)" 
+                readonly 
+                class="readonly-field" 
+              />
+            </div>
+          </div>
+          <div class="form-group"></div>
+        </div>
+      </div>
+
+      <br>
+
+      <!-- Remarks and Status Section -->
+      <div class="form-row">
+        <div class="form-group full-width">
+          <label>Remarks (Optional)</label>
+          <textarea
+            v-model="selectedBilling.Remarks"
+            rows="3"
+            readonly
+            class="readonly-field"
+          ></textarea>
+        </div>
+        <div class="form-group">
+          <label>Status</label>
+          <div class="status-display">
+            <span class="status-badge paid">Paid</span>
+            <span class="status-message">This billing has been paid</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div v-else class="no-services">No payment details available</div>
+  </div>
+</div>
 
           <!-- Payment Summary Section (for Insurance Billings) -->
           <div v-if="isInsuranceBilling">
@@ -1202,6 +1196,7 @@ export default {
   },
   data() {
     return {
+      totalAmountPaidInput: 0,
       isSearchActive: false,
       searchQuery: '',
       allBillings: [],
@@ -1274,9 +1269,16 @@ export default {
   },
   computed: {
     calculatedTotalAmount() {
-      // Calculate total amount as RemainingBalance + AmountPaid
-      return (this.selectedBilling.Balance || 0) + (this.selectedBilling.AmountPaid || 0);
-    },
+    if (!this.selectedBilling.services || this.selectedBilling.services.length === 0) return 0;
+    
+    return this.selectedBilling.services.reduce((sum, service) => {
+      // Use userInputPrice if available, otherwise use Cost
+      const servicePrice = service.userInputPrice !== null && service.userInputPrice !== undefined 
+        ? Number(service.userInputPrice) 
+        : Number(service.Cost) || 0;
+      return sum + servicePrice;
+    }, 0);
+  },
     fullName() {
       return `${this.firstName} ${this.lastName}`;
     },
@@ -1746,6 +1748,42 @@ insuranceBillings() {
   this.stopAutoRefresh();
 },
   methods: {
+  syncPaymentMethodToAllServices() {
+    if (!this.selectedBilling.services || this.selectedBilling.services.length === 0) return;
+    
+    const paymentMethod = this.selectedBilling.services[0].PaymentMethod;
+    this.selectedBilling.services.forEach(service => {
+      service.PaymentMethod = paymentMethod;
+    });
+    
+    // Update reference fields and recalculate
+    this.updateServicePaymentMethod(this.selectedBilling.services[0]);
+    this.calculateTotalBalanceAndStatus();
+  },
+
+  syncAmountPaidToAllServices() {
+    if (!this.selectedBilling.services || this.selectedBilling.services.length === 0) return;
+    
+    const totalAmountPaid = Number(this.totalAmountPaidInput) || 0;
+    const totalCost = this.calculatedTotalAmount;
+    
+    if (totalCost === 0) return;
+    
+    // Distribute the payment proportionally based on each service's cost
+    this.selectedBilling.services.forEach(service => {
+      const servicePrice = service.userInputPrice !== null && service.userInputPrice !== undefined 
+        ? Number(service.userInputPrice) 
+        : Number(service.Cost) || 0;
+      const proportion = servicePrice / totalCost;
+      service.AmountPaid = totalAmountPaid * proportion;
+    });
+    
+    // Recalculate balances and status
+    this.selectedBilling.services.forEach(service => {
+      this.calculateServiceBalanceAndChange(service);
+    });
+    this.calculateTotalBalanceAndStatus();
+  },
     async confirmLogout() {
   const result = await Swal.fire({
     title: 'Are you sure?',
@@ -1763,18 +1801,11 @@ insuranceBillings() {
   }
 },
     getCombinedServiceNames(services) {
-      if (!services || services.length === 0) return 'No services';
-      
-      const serviceNames = services.map(service => service.ServiceName);
-      
-      if (serviceNames.length === 1) {
-        return serviceNames[0];
-      } else if (serviceNames.length === 2) {
-        return serviceNames.join(' and ');
-      } else {
-        return serviceNames.slice(0, -1).join(', ') + ' and ' + serviceNames[serviceNames.length - 1];
-      }
-    },
+  if (!services || services.length === 0) return 'No services';
+  
+  // Return each service name separately instead of combining
+  return services.map(service => service.ServiceName);
+},
     async declineInsurance() {
   try {
     // Calculate TotalAmount inline to avoid undefined method error
@@ -2361,114 +2392,135 @@ insuranceBillings() {
   }
 
   const updatedServices = existingBilling.services.map(service => {
-  const serviceDiscount = Number(service.Discount) || 0;
-  let serviceAmountPaid = Number(service.AmountPaid) || 0;
-  let adjustedPaymentMethod = service.PaymentMethod || 'N/A';
+    const serviceDiscount = Number(service.Discount) || 0;
+    let serviceAmountPaid = Number(service.AmountPaid) || 0;
+    let adjustedPaymentMethod = service.PaymentMethod || 'N/A';
 
-  if (this.activeTab === 'unpaid' && restrictedMethodType && adjustedPaymentMethod !== 'N/A') {
-    const method = this.paymentMethods.find(m => m.MethodName === adjustedPaymentMethod);
-    const methodType = method ? method.MethodType : null;
-    if (
-      (restrictedMethodType === 'E-Wallet' || restrictedMethodType === 'Bank Payment') &&
-      methodType &&
-      methodType !== 'Cash' &&
-      methodType !== 'Insurance' &&
-      adjustedPaymentMethod !== restrictedMethodName
-    ) {
-      adjustedPaymentMethod = 'N/A';
-      serviceAmountPaid = 0;
-      service.ReferenceID = '';
-      service.Change = 0;
+    if (this.activeTab === 'unpaid' && restrictedMethodType && adjustedPaymentMethod !== 'N/A') {
+      const method = this.paymentMethods.find(m => m.MethodName === adjustedPaymentMethod);
+      const methodType = method ? method.MethodType : null;
+      if (
+        (restrictedMethodType === 'E-Wallet' || restrictedMethodType === 'Bank Payment') &&
+        methodType &&
+        methodType !== 'Cash' &&
+        methodType !== 'Insurance' &&
+        adjustedPaymentMethod !== restrictedMethodName
+      ) {
+        adjustedPaymentMethod = 'N/A';
+        serviceAmountPaid = 0;
+        service.ReferenceID = '';
+        service.Change = 0;
+      }
     }
-  }
 
-  if (targetPaymentMethod && adjustedPaymentMethod !== targetPaymentMethod) {
-    serviceAmountPaid = 0;
-  }
+    if (targetPaymentMethod && adjustedPaymentMethod !== targetPaymentMethod) {
+      serviceAmountPaid = 0;
+    }
 
-  // Use the billing's balance as the service cost if there's a remaining balance
-  let serviceCost;
-  if (billing.Balance > 0 && billing.Balance !== billing.TotalAmount) {
-    // If there's a remaining balance that's different from total amount, use the balance
-    serviceCost = billing.Balance;
-  } else {
-    // Otherwise use the service's updated price or original cost
-    serviceCost = service.UpdatedPrice !== null ? Number(service.UpdatedPrice) : Number(service.Cost);
-  }
+    // Use the billing's balance as the service cost if there's a remaining balance
+    let serviceCost;
+    if (billing.Balance > 0 && billing.Balance !== billing.TotalAmount) {
+      // If there's a remaining balance that's different from total amount, use the balance
+      serviceCost = billing.Balance;
+    } else {
+      // Otherwise use the service's updated price or original cost
+      serviceCost = service.UpdatedPrice !== null ? Number(service.UpdatedPrice) : Number(service.Cost);
+    }
 
-  const effectiveCost = serviceCost - serviceDiscount;
-  let serviceChange = Number(service.Change) || 0;
-  const method = this.paymentMethods.find(m => m.MethodName === adjustedPaymentMethod);
-  if (method && method.MethodType === 'Cash' && method.MethodName === 'Cash') {
-    serviceChange = serviceAmountPaid > effectiveCost ? serviceAmountPaid - effectiveCost : 0;
-  }
+    const effectiveCost = serviceCost - serviceDiscount;
+    let serviceChange = Number(service.Change) || 0;
+    const method = this.paymentMethods.find(m => m.MethodName === adjustedPaymentMethod);
+    if (method && method.MethodType === 'Cash' && method.MethodName === 'Cash') {
+      serviceChange = serviceAmountPaid > effectiveCost ? serviceAmountPaid - effectiveCost : 0;
+    }
 
-  return {
-    ...service,
-    Cost: serviceCost, // Use the calculated service cost (which may be the remaining balance)
-    BasePrice: Number(service.Cost), // Store original cost from database
-    UpdatedPrice: service.UpdatedPrice !== null ? Number(service.UpdatedPrice) : null,
-    AmountPaid: serviceAmountPaid,
-    Discount: serviceDiscount,
-    Change: serviceChange,
-    Balance: effectiveCost - serviceAmountPaid,
-    PaymentStatus: serviceAmountPaid >= effectiveCost ? 'Paid' : (serviceAmountPaid > 0 ? 'Partially Paid' : 'Unpaid'),
-    PaymentMethod: adjustedPaymentMethod,
-    ReferenceID: service.ReferenceID || '',
-  };
-});
+    return {
+      ...service,
+      Cost: serviceCost, // Use the calculated service cost (which may be the remaining balance)
+      BasePrice: Number(service.Cost), // Store original cost from database
+      UpdatedPrice: service.UpdatedPrice !== null ? Number(service.UpdatedPrice) : null,
+      AmountPaid: serviceAmountPaid,
+      Discount: serviceDiscount,
+      Change: serviceChange,
+      Balance: effectiveCost - serviceAmountPaid,
+      PaymentStatus: serviceAmountPaid >= effectiveCost ? 'Paid' : (serviceAmountPaid > 0 ? 'Partially Paid' : 'Unpaid'),
+      PaymentMethod: adjustedPaymentMethod,
+      ReferenceID: service.ReferenceID || '',
+    };
+  });
 
   const displayServices = targetPaymentMethod
     ? updatedServices.filter(s => s.PaymentMethod === targetPaymentMethod)
     : updatedServices;
 
   // Use Balance from backend as the initial TotalAmount for payment
-const computedTotalAmount = billing.Balance > 0 ? billing.Balance : displayServices.reduce((sum, s) => {
-  const price = s.UpdatedPrice !== null ? Number(s.UpdatedPrice) : Number(s.Cost);
-  return sum + price;
-}, 0);
+  const computedTotalAmount = billing.Balance > 0 ? billing.Balance : displayServices.reduce((sum, s) => {
+    const price = s.UpdatedPrice !== null ? Number(s.UpdatedPrice) : Number(s.Cost);
+    return sum + price;
+  }, 0);
 
-// Combine all services into a single service entry for display
-const combinedService = {
-  ServiceAvailedID: displayServices.map(s => s.ServiceAvailedID).join(','),
-  ServiceName: this.getCombinedServiceNames(displayServices),
-  Cost: computedTotalAmount,
-  BasePrice: computedTotalAmount,
-  UpdatedPrice: null,
-  AmountPaid: displayServices.reduce((sum, s) => sum + (Number(s.AmountPaid) || 0), 0),
-  Discount: displayServices.reduce((sum, s) => sum + (Number(s.Discount) || 0), 0),
-  Change: displayServices.reduce((sum, s) => sum + (Number(s.Change) || 0), 0),
-  Balance: billing.Balance || 0,
-  PaymentStatus: billing.BillingStatus === 'Paid' ? 'Paid' : (billing.BillingStatus === 'Partially Paid' ? 'Partially Paid' : 'Unpaid'),
-  PaymentMethod: targetPaymentMethod || billing.PaymentMethod || 'N/A',
-  ReferenceID: billing.ReferenceID || '',
-};
+  // Combine all services into a single service entry for display
+  const individualServices = displayServices.map(service => ({
+  ServiceAvailedID: service.ServiceAvailedID,
+  ServiceName: service.ServiceName,
+  Cost: computedTotalAmount / displayServices.length, // Distribute total evenly or use individual service cost
+  BasePrice: service.Cost,
+  UpdatedPrice: service.UpdatedPrice,
+  AmountPaid: Number(service.AmountPaid) || 0,
+  Discount: Number(service.Discount) || 0,
+  Change: Number(service.Change) || 0,
+  Balance: Number(service.Balance) || 0,
+  PaymentStatus: service.PaymentStatus,
+  PaymentMethod: service.PaymentMethod || 'N/A',
+  ReferenceID: service.ReferenceID || '',
+  // CHANGE THIS LINE - Initialize userInputPrice to 0 instead of existing price
+  userInputPrice: 0, // Start with 0 instead of prefilling with existing price
+}));
+
+// Also find the section at the end of openEditModal where userInputPrice is initialized again:
+// REMOVE OR CHANGE THIS SECTION:
+// Initialize userInputPrice for each service if not set
+this.selectedBilling.services.forEach(service => {
+  // CHANGE THIS TO ALWAYS SET TO 0
+  service.userInputPrice = 0; // Always start at 0
+});
 
   this.selectedBilling = JSON.parse(JSON.stringify({
-  ...billing,
-  BillingID: baseBillingID,
-  TotalAmount: billing.Balance > 0 ? billing.Balance : billing.TotalAmount, // Use balance if available, otherwise original amount
-  TotalPaid: displayServices.reduce((sum, s) => sum + (Number(s.AmountPaid) || 0), 0),
-  Discount: displayServices.reduce((sum, service) => sum + (Number(service.Discount) || 0), 0),
-  Balance: billing.Balance || (billing.TotalAmount - 
-            displayServices.reduce((sum, s) => sum + (Number(s.AmountPaid) || 0), 0) - 
-            displayServices.reduce((sum, s) => sum + (Number(s.Discount) || 0), 0)),
-  BillingStatus: billing.BillingStatus || 'Unpaid',
-  PaymentMethod: targetPaymentMethod || billing.PaymentMethod || 'N/A',
-  ReferenceID: billing.ReferenceID || '',
-  ApprovalCode: billing.ApprovalCode || '',
-  LOE: billing.LOE || '',
-  Change: displayServices.reduce((sum, s) => sum + (Number(s.Change) || 0), 0),
-  Remarks: billing.Remarks || '',
-  services: [combinedService], // Use single combined service instead of multiple services
-  originalServices: updatedServices.map(service => ({
-    ServiceAvailedID: service.ServiceAvailedID,
-    ServiceName: service.ServiceName,
-    Cost: service.Cost,
-    Discount: service.Discount || 0,
-    UpdatedPrice: service.UpdatedPrice,
-  })),
-}));
+    ...billing,
+    BillingID: baseBillingID,
+    TotalAmount: billing.Balance > 0 ? billing.Balance : billing.TotalAmount, // Use balance if available, otherwise original amount
+    TotalPaid: displayServices.reduce((sum, s) => sum + (Number(s.AmountPaid) || 0), 0),
+    Discount: displayServices.reduce((sum, service) => sum + (Number(service.Discount) || 0), 0),
+    Balance: billing.Balance || (billing.TotalAmount - 
+              displayServices.reduce((sum, s) => sum + (Number(s.AmountPaid) || 0), 0) - 
+              displayServices.reduce((sum, s) => sum + (Number(s.Discount) || 0), 0)),
+    BillingStatus: billing.BillingStatus || 'Unpaid',
+    PaymentMethod: targetPaymentMethod || billing.PaymentMethod || 'N/A',
+    ReferenceID: billing.ReferenceID || '',
+    ApprovalCode: billing.ApprovalCode || '',
+    LOE: billing.LOE || '',
+    Change: displayServices.reduce((sum, s) => sum + (Number(s.Change) || 0), 0),
+    Remarks: billing.Remarks || '',
+    services: individualServices,// Use single combined service instead of multiple services
+    originalServices: updatedServices.map(service => ({
+      ServiceAvailedID: service.ServiceAvailedID,
+      ServiceName: service.ServiceName,
+      Cost: service.Cost,
+      Discount: service.Discount || 0,
+      UpdatedPrice: service.UpdatedPrice,
+    })),
+  }));
+
+  this.totalAmountPaidInput = this.selectedBilling.services.reduce((sum, service) => {
+    return sum + (Number(service.AmountPaid) || 0);
+  }, 0);
+  
+  // Initialize userInputPrice for each service if not set
+  this.selectedBilling.services.forEach(service => {
+    if (service.userInputPrice === null || service.userInputPrice === undefined) {
+      service.userInputPrice = service.UpdatedPrice !== null ? Number(service.UpdatedPrice) : Number(service.Cost);
+    }
+  });
 
   if (this.shouldShowSharedReferenceInput) {
     const firstReferenceID = this.selectedBilling.services.find(
@@ -2504,19 +2556,19 @@ openViewModal(billing) {
   }));
 
   // Combine services into a single entry
-  const combinedService = {
-    ServiceAvailedID: updatedServices.map(s => s.ServiceAvailedID).join(','),
-    ServiceName: this.getCombinedServiceNames(updatedServices),
-    Cost: billing.IsStandalonePayment ? billing.TotalPaid : updatedServices.reduce((sum, s) => sum + Number(s.Cost), 0),
-    BasePrice: billing.IsStandalonePayment ? billing.TotalPaid : updatedServices.reduce((sum, s) => sum + Number(s.Cost), 0),
-    AmountPaid: updatedServices.reduce((sum, s) => sum + Number(s.AmountPaid), 0),
-    Discount: updatedServices.reduce((sum, s) => sum + Number(s.Discount), 0),
-    Change: updatedServices.reduce((sum, s) => sum + Number(s.Change), 0),
-    Balance: Number(billing.Balance) || 0,
-    PaymentStatus: billing.BillingStatus === 'Paid' ? 'Paid' : (billing.BillingStatus === 'Partially Paid' ? 'Partially Paid' : 'Unpaid'),
-    PaymentMethod: billing.PaymentMethod || (updatedServices[0]?.PaymentMethod || 'N/A'),
-    ReferenceID: billing.ReferenceID || (updatedServices[0]?.ReferenceID || ''),
-  };
+  const individualServices = updatedServices.map(service => ({
+  ServiceAvailedID: service.ServiceAvailedID,
+  ServiceName: service.ServiceName,
+  Cost: Number(service.Cost) || 0,
+  BasePrice: Number(service.Cost) || 0,
+  AmountPaid: Number(service.AmountPaid) || 0,
+  Discount: Number(service.Discount) || 0,
+  Change: Number(service.Change) || 0,
+  Balance: Number(service.Balance) || 0,
+  PaymentStatus: service.PaymentStatus,
+  PaymentMethod: service.PaymentMethod || 'N/A',
+  ReferenceID: service.ReferenceID || '',
+}));
 
   // Populate selectedBilling with the combined service
   this.selectedBilling = JSON.parse(JSON.stringify({
@@ -2533,7 +2585,7 @@ openViewModal(billing) {
     LOE: billing.LOE || '',
     Change: updatedServices.reduce((sum, s) => sum + Number(s.Change), 0),
     Remarks: billing.Remarks || '',
-    services: [combinedService], // Use single combined service
+    services: individualServices, // Use individual services
     originalServices: updatedServices.map(service => ({
       ServiceAvailedID: service.ServiceAvailedID,
       ServiceName: service.ServiceName,
@@ -2580,19 +2632,28 @@ openViewModal(billing) {
       this.sharedReferenceID = '';
     },
     calculateTotalBalanceAndStatus() {
-      const totalPaid = this.selectedBilling.services.reduce(
-        (sum, service) => sum + (Number(service.AmountPaid) || 0),
-        0
-      );
-      this.selectedBilling.TotalPaid = totalPaid;
-      const totalAmount = Number(this.selectedBilling.TotalAmount) || 0;
-      const discount = this.selectedBilling.services.reduce(
-        (sum, service) => sum + (Number(service.Discount) || 0),
-        0
-      );
-      this.selectedBilling.Discount = discount;
-      const payableAmount = Math.max(0, totalAmount - discount);
-      this.selectedBilling.Balance = Math.max(0, payableAmount - totalPaid);
+    // Calculate total paid from individual services
+    const totalPaid = this.selectedBilling.services.reduce(
+      (sum, service) => sum + (Number(service.AmountPaid) || 0),
+      0
+    );
+    this.selectedBilling.TotalPaid = totalPaid;
+    
+    // Use calculatedTotalAmount for the total
+    const totalAmount = this.calculatedTotalAmount;
+    this.selectedBilling.TotalAmount = totalAmount;
+    
+    const discount = this.selectedBilling.services.reduce(
+      (sum, service) => sum + (Number(service.Discount) || 0),
+      0
+    );
+    this.selectedBilling.Discount = discount;
+    
+    const payableAmount = Math.max(0, totalAmount - discount);
+    this.selectedBilling.Balance = Math.max(0, payableAmount - totalPaid);
+
+    // Update the total amount paid input
+    this.totalAmountPaidInput = totalPaid;
 
       const paidService = this.selectedBilling.services
         .filter(s => s.AmountPaid > 0)
@@ -3104,7 +3165,7 @@ async updateBilling() {
     : [service.ServiceAvailedID];
   
   return serviceAvailedIds.map(id => ({
-    ServiceAvailedID: id.trim(),
+    ServiceAvailedID: (id || '').toString().trim(),
     ServiceName: service.ServiceName,
     Cost: Number(service.Cost) / serviceAvailedIds.length, // Distribute cost evenly
     UpdatedPrice: service.UpdatedPrice !== null ? Number(service.UpdatedPrice) / serviceAvailedIds.length : null,
@@ -3434,31 +3495,34 @@ async manualRefresh() {
     },
 
     setServicePrice(service, value) {
-  let newPrice = Number(value);
+  let newPrice = Number(value) || 0; // Ensure we handle empty/null values as 0
   
   if (newPrice < 0) {
     this.showNegativePriceModal = true;
-    service.Cost = service.BasePrice;
-    service.UpdatedPrice = null;
-    this.$nextTick(() => {
-      const input = document.querySelector(`input[value="${value}"]`);
-      if (input) {
-        input.value = service.BasePrice.toString();
-      }
-    });
-  } else {
-    const originalCost = Number(service.BasePrice);
-    if (Math.abs(newPrice - originalCost) > 0.01) {
-      service.UpdatedPrice = newPrice;
-    } else {
-      service.UpdatedPrice = null;
-    }
-    service.Cost = newPrice;
+    service.userInputPrice = 0; // Reset to 0 instead of base price
+    return;
   }
-
+  
+  // Set the user input price
+  service.userInputPrice = newPrice;
+  
+  // Update the service cost for calculations
+  service.Cost = newPrice;
+  
+  // Recalculate service balance and totals
   this.calculateServiceBalanceAndChange(service);
-  this.updateTotalAmount();
+  this.updateTotalAmountFromServices();
 },
+    updateTotalAmountFromServices() {
+      this.selectedBilling.TotalAmount = this.calculatedTotalAmount;
+      
+      // Update the total amount paid input to reflect current state
+      this.totalAmountPaidInput = this.selectedBilling.services.reduce((sum, service) => {
+        return sum + (Number(service.AmountPaid) || 0);
+      }, 0);
+      
+      this.calculateTotalBalanceAndStatus();
+    },
   },
 };
 </script>
@@ -5043,8 +5107,19 @@ textarea:disabled {
   }
 }
 
-.nav-link {
-    margin-top: -30px
+.payment-total-section {
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 2px solid #06693A;
+  background-color: #f0f7f3;
+  padding: 15px;
+  border-radius: 6px;
+}
+
+.total-amount-field,
+.total-paid-field {
+  font-weight: 600;
+  color: #06693A;
 }
 
 </style>
