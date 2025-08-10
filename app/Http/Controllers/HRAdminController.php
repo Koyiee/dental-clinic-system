@@ -150,13 +150,13 @@ class HRAdminController extends Controller
         // Find the user account
         $account = UserAccount::where('UserID', $request->AccountID)->firstOrFail();
     
-        // Allow toggling for Dentist, HRAdmin, or Owner
-        if (!in_array($account->UserType, ['Dentist', 'HRAdmin', 'Owner'])) {
+        // Allow toggling for Dentist, HRAdmin, Owner, or Patient
+        if (!in_array($account->UserType, ['Dentist', 'HRAdmin', 'Owner', 'Patient'])) {
             \Log::error('Invalid user type for status update', [
                 'id' => $request->AccountID,
                 'type' => $account->UserType
             ]);
-            return response()->json(['error' => 'Can only toggle dentist, HR admin, or owner accounts'], 400);
+            return response()->json(['error' => 'Can only toggle dentist, HR admin, owner, or patient accounts'], 400);
         }
     
         // If the target account is an Owner, check if it's the superowner
