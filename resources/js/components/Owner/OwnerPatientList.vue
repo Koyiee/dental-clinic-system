@@ -210,9 +210,9 @@
           <table class="patient-table desktop-table">
             <thead>
               <tr>
-                <th style="padding-left: 25px;" @click="sortTable('index')" class="sortable-header">
-                  No.
-                  <i v-if="sortConfig.key === 'index'" class="bx" :class="getSortIconClass('index')"></i>
+                <th @click="sortTable('PatientID')" class="sortable-header">
+                  Patient ID
+                  <i v-if="sortConfig.key === 'PatientID'" class="bx" :class="getSortIconClass('PatientID')"></i>
                 </th>
                 <th @click="sortTable('name')" class="sortable-header">
                   Patients Name
@@ -234,7 +234,7 @@
             </thead>
             <tbody class="container-patient">
               <tr v-for="(patient, index) in filteredPatients" :key="patient.PatientID" @click="showPatientDetails(patient)" class="patient-row">
-                <td style="padding-left: 25px;" class="truncate-cell">{{ (currentPage - 1) * 15 + index + 1 }}</td>
+                <td>{{ patient.PatientID }}</td>
                 <td class="truncate-cell">{{ patient.user.FirstName }} {{ patient.user.LastName }}</td>
                 <td class="truncate-cell">{{ patient.user.ContactNumber }}</td>
                 <td class="truncate-cell">{{ formatAppointmentDate(patient.nextAppointment) || 'N/A' }}</td>
