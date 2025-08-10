@@ -200,7 +200,7 @@
                   Account Status
                   <i v-if="sortConfig.key === 'AccountStatus'" class="bx" :class="getSortIconClass('AccountStatus')"></i>
                 </th>
-                <th v-if="selectedUserType === 'dentist'">Action</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -217,8 +217,9 @@
                     {{ capitalizeStatus(user.AccountStatus) }}
                   </span>
                 </td>
-                <td v-if="selectedUserType === 'dentist'" class="actions-cell">
+                <td class="actions-cell">
                   <button 
+                    v-if="selectedUserType === 'dentist'"
                     @click.stop="openDaysOffModal(user.UserID)" 
                     class="action-button edit-btn"
                     title="Edit Days Off"
@@ -228,9 +229,9 @@
                   <button 
                     @click.stop="toggleStatus(user.UserID, user.AccountStatus)" 
                     class="action-button"
-                    :class="{ 'activate-btn': user.AccountStatus === 'deactivated', 'deactivate-btn': user.AccountStatus === 'active' }"
+                    :class="{ 'activate-btn': user.AccountStatus === 'deactivated', 'deactivate-btn': user.AccountStatus === 'active' || user.AccountStatus === 'archived' }"
                   >
-                    {{ user.AccountStatus === 'active' ? 'Deactivate' : 'Activate' }}
+                    {{ user.AccountStatus === 'deactivated' ? 'Activate' : 'Deactivate' }}
                   </button>
                 </td>
               </tr>
@@ -260,20 +261,21 @@
                 <span class="card-label">User ID:</span>
                 <span>{{ user.UserID }}</span>
               </div>
-              <div class="card-row" v-if="selectedUserType === 'dentist'">
+              <div class="card-row">
                 <div class="mobile-actions">
                   <button 
+                    v-if="selectedUserType === 'dentist'"
                     @click.stop="openDaysOffModal(user.UserID)" 
                     class="action-button-mobile edit-btn"
                   >
                     <i class='bx bx-calendar-edit'></i> Days Off
                   </button>
-                  <button 
+                 <button 
                     @click.stop="toggleStatus(user.UserID, user.AccountStatus)" 
                     class="action-button-mobile"
-                    :class="{ 'activate-btn': user.AccountStatus === 'deactivated', 'deactivate-btn': user.AccountStatus === 'active' }"
+                    :class="{ 'activate-btn': user.AccountStatus === 'deactivated', 'deactivate-btn': user.AccountStatus === 'active' || user.AccountStatus === 'archived' }"
                   >
-                    {{ user.AccountStatus === 'active' ? 'Deactivate' : 'Activate' }}
+                    {{ user.AccountStatus === 'deactivated' ? 'Activate' : 'Deactivate' }}
                   </button>
                 </div>
               </div>
@@ -627,7 +629,7 @@
                 </div>
 
                 <div class="form-group">
-                  <label for="GovernmentID">Upload Government ID <span class="required">*</span></label>
+                  <label for="GovernmentID">Upload Government ID <span class="required">*</span><span class="example-text">jpeg/png, max 10MB</span></label>
                   <div class="file-upload-wrapper">
                     <input
                       type="file"
@@ -644,7 +646,7 @@
                     </div>
                   </div>
                   <div v-if="formSubmitted && !formData.GovernmentID" class="invalid-feedback">
-                    Please upload a valid government ID (JPG or PNG)
+                    Please upload a valid government ID (JPG or PNG), 10 MB max
                   </div>
                 </div>
 
@@ -948,11 +950,11 @@ export default {
       return status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
     },
     async toggleStatus(userId, currentStatus) {
-      const newStatus = currentStatus === 'active' ? 'deactivated' : 'active';
+      const newStatus = currentStatus === 'deactivated' ? 'active' : 'deactivated';
       const action = newStatus === 'deactivated' ? 'deactivate' : 'activate';
       const result = await Swal.fire({
         title: `Confirm ${action}`,
-        text: `Are you sure you want to ${action} this dentist?`,
+        text: `Are you sure you want to ${action} this ${this.selectedUserType}?`,
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#06693A',
@@ -972,7 +974,7 @@ export default {
         if (response.data.message) {
           await Swal.fire({
             title: 'Success',
-            text: `Dentist ${action}d successfully!`,
+            text: `${this.selectedUserType.charAt(0).toUpperCase() + this.selectedUserType.slice(1)} ${action}d successfully!`,
             icon: 'success',
             timer: 2000,
             showConfirmButton: false
@@ -1136,9 +1138,9 @@ export default {
           return;
         }
 
-        const maxSize = 5 * 1024 * 1024; // 5MB
+        const maxSize = 10 * 1024 * 1024; // 10MB
         if (file.size > maxSize) {
-          this.errors.push('Government ID file size must not exceed 5MB');
+          this.errors.push('Government ID file size must not exceed 10MB');
           this.formData.GovernmentID = null;
           this.imagePreview = null;
           this.$refs.governmentIDInput.value = '';
