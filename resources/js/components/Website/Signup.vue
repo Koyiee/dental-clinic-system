@@ -422,7 +422,7 @@
         </div>
 
         <div class="form-full">
-          <label for="GovernmentID">Upload Government ID <span>*</span> <span class="hint-text">jpg/png</span></label>
+          <label for="GovernmentID">Upload Government ID <span>*</span> <span class="hint-text">jpg/png, max 10MB</span></label>
           <input type="file" id="GovernmentID" @change="handleFileUpload" required accept="image/jpeg,image/png" ref="governmentIDInput">
           <div v-if="formSubmitted && !formData.GovernmentID" class="invalid-feedback">
             Please upload a valid government ID (JPG or PNG)
@@ -638,9 +638,9 @@ export default {
           return;
         }
 
-        const maxSize = 5 * 1024 * 1024;
+        const maxSize = 10 * 1024 * 1024;
         if (file.size > maxSize) {
-          this.errors.push('Government ID file size must not exceed 5MB');
+          this.errors.push('Government ID file size must not exceed 10MB');
           this.formData.GovernmentID = null;
           this.imagePreview = null;
           this.$refs.governmentIDInput.value = '';
