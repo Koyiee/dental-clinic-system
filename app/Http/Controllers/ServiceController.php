@@ -15,7 +15,7 @@ class ServiceController extends Controller
             $validated = $request->validate([
                 'ServiceName' => 'required|string|max:255',
                 'Description' => 'nullable|string',
-                'Cost' => 'required|numeric|min:0',
+                'Cost' => 'nullable|numeric|min:0',
                 'IsMultiVisit' => 'boolean',
                 'IsActive' => 'boolean',
             ]);
@@ -83,7 +83,7 @@ class ServiceController extends Controller
             $validated = $request->validate([
                 'ServiceName' => 'required|string|max:255',
                 'Description' => 'nullable|string',
-                'Cost' => 'required|numeric|min:0',
+                'Cost' => 'nullable|numeric|min:0',
                 'IsMultiVisit' => 'boolean',
                 'IsActive' => 'boolean',
             ]);
