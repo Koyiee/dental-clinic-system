@@ -2488,7 +2488,7 @@ padding: 10px !important;
 
 /* Keep calendar view (dayGridMonth) text color as black */
 .fc-dayGridMonth-view .fc-event-content {
-  color: black !important;
+  color: white !important;
 }
 
 /* Ensure unfinished events in day view have white text */
