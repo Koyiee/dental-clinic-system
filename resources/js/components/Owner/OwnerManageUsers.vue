@@ -201,7 +201,7 @@
                       selectedUserType === 'dentist' ? 'Dentist Name' : 
                       selectedUserType === 'hradmin' ? 'HR Admin Name' : 'Owner Name' }}</th>
                 <th>Account Status</th>
-                <th v-if="selectedUserType !== 'patient'">Action</th> <!-- Hide Action column for patients -->
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -220,7 +220,7 @@
                     {{ capitalizeStatus(user.AccountStatus) }}
                   </span>
                 </td>
-                <td v-if="selectedUserType !== 'patient'" class="actions-cell">
+                <td class="actions-cell">
                   <button
                     v-if="selectedUserType === 'dentist'"
                     @click.stop="openDaysOffModal(user.UserID)"
@@ -230,14 +230,13 @@
                     Edit
                   </button>
                   <button
-                    v-if="selectedUserType !== 'patient' && (!user.IsSuperOwner || selectedUserType !== 'owner')"
+                    v-if="(!user.IsSuperOwner || selectedUserType !== 'owner')"
                     @click.stop="toggleStatus(user.UserID, user.AccountStatus)"
                     class="action-button"
-                    :class="{ 'activate-btn': user.AccountStatus === 'deactivated', 'deactivate-btn': user.AccountStatus === 'active' }"
+                    :class="{ 'activate-btn': user.AccountStatus === 'deactivated', 'deactivate-btn': user.AccountStatus === 'active' || user.AccountStatus === 'archived' }"
                   >
-                    {{ user.AccountStatus === 'active' ? 'Deactivate' : 'Activate' }}
+                    {{ user.AccountStatus === 'deactivated' ? 'Activate' : 'Deactivate' }}
                   </button>
-                 
                   <span v-else-if="user.IsSuperOwner && selectedUserType === 'owner'" class="disabled-text">
                     <!-- Superowner (Non-deactivatable) -->
                   </span>
@@ -271,7 +270,7 @@
                 <span class="card-label">User ID:</span>
                 <span>{{ user.UserID }}</span>
               </div>
-              <div v-if="selectedUserType !== 'patient'" class="card-row">
+              <div class="card-row">
                 <div class="mobile-actions">
                   <button
                     v-if="selectedUserType === 'dentist'"
@@ -282,12 +281,12 @@
                     <i class='bx bx-calendar-edit'></i> Days Off
                   </button>
                   <button
-                    v-if="selectedUserType !== 'patient' && (!user.IsSuperOwner || selectedUserType !== 'owner')"
+                    v-if="(!user.IsSuperOwner || selectedUserType !== 'owner')"
                     @click.stop="toggleStatus(user.UserID, user.AccountStatus)"
                     class="action-button-mobile"
-                    :class="{ 'activate-btn': user.AccountStatus === 'deactivated', 'deactivate-btn': user.AccountStatus === 'active' }"
+                    :class="{ 'activate-btn': user.AccountStatus === 'deactivated', 'deactivate-btn': user.AccountStatus === 'active' || user.AccountStatus === 'archived' }"
                   >
-                    {{ user.AccountStatus === 'active' ? 'Deactivate' : 'Activate' }}
+                    {{ user.AccountStatus === 'deactivated' ? 'Activate' : 'Deactivate' }}
                   </button>
                   <span v-else-if="user.IsSuperOwner && selectedUserType === 'owner'" class="disabled-text">
                     Superowner (Non-deactivatable)
@@ -1008,11 +1007,15 @@ export default {
         return;
       }
 
-      const newStatus = currentStatus === 'active' ? 'deactivated' : 'active';
+      const newStatus = currentStatus === 'deactivated' ? 'active' : 'deactivated';
       const action = newStatus === 'deactivated' ? 'deactivate' : 'activate';
+      const userTypeDisplay = 
+        this.selectedUserType === 'patient' ? 'Patient' :
+        this.selectedUserType === 'dentist' ? 'Dentist' :
+        this.selectedUserType === 'hradmin' ? 'HR Admin' : 'Owner';
       const result = await Swal.fire({
         title: `Confirm ${action}`,
-        text: `Are you sure you want to ${action} this user?`,
+        text: `Are you sure you want to ${action} this ${userTypeDisplay.toLowerCase()}?`,
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#06693A',
@@ -1032,7 +1035,7 @@ export default {
         if (response.data.message) {
           await Swal.fire({
             title: 'Success',
-            text: `User ${action}d successfully!`,
+            text: `${userTypeDisplay} ${action}d successfully!`,
             icon: 'success',
             timer: 2000,
             showConfirmButton: false
@@ -1044,12 +1047,12 @@ export default {
           }
         }
       } catch (error) {
-        console.error(`Error ${action}ing user:`, error);
+        console.error(`Error ${action}ing ${userTypeDisplay.toLowerCase()}:`, error);
         await Swal.fire({
           title: 'Error',
           text: error.response && error.response.status === 403
             ? error.response.data.message
-            : `Failed to ${action} user. Please try again.`,
+            : `Failed to ${action} ${userTypeDisplay.toLowerCase()}. Please try again.`,
           icon: 'error',
           confirmButtonColor: '#06693A',
         });
