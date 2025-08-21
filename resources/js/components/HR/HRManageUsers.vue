@@ -174,7 +174,7 @@
             <div class="user-type-selector">
               <select id="user-type" v-model="selectedUserType" @change="fetchUsers">
                 <option value="patient">Patient</option>
-                <option value="dentist">Dentist</option>
+                <!-- <option value="dentist">Dentist</option> -->
               </select>
             </div>
             <button class="add-user-btn" @click="openModal">
@@ -188,9 +188,9 @@
           <table class="users-table desktop-table">
             <thead>
               <tr>
-                <th @click="sortTable('UserID')" class="sortable-header">
-                  User ID
-                  <i v-if="sortConfig.key === 'UserID'" class="bx" :class="getSortIconClass('UserID')"></i>
+                <th @click="sortTable('PatientID')" class="sortable-header">
+                  Patient ID
+                  <i v-if="sortConfig.key === 'PatientID'" class="bx" :class="getSortIconClass('PatientID')"></i>
                 </th>
                 <th @click="sortTable('LastName')" class="sortable-header">
                   {{ selectedUserType === 'patient' ? 'Patient Name' : 'Dentist Name' }}
@@ -210,7 +210,7 @@
                 class="user-row"
                 :class="{ 'clickable-row': selectedUserType === 'dentist' }"
               >
-                <td class="truncate-cell">{{ user.UserID }}</td>
+                <td class="truncate-cell">{{ user.PatientID || user.UserID }}</td>
                 <td class="truncate-cell">{{ user.LastName }}, {{ user.FirstName }}</td>
                 <td class="truncate-cell">
                   <span class="status-badge" :class="getStatusClass(user.AccountStatus)">
@@ -258,8 +258,8 @@
             </div>
             <div class="card-content">
               <div class="card-row">
-                <span class="card-label">User ID:</span>
-                <span>{{ user.UserID }}</span>
+                <span class="card-label">Patient ID:</span>
+                <span>{{ user.PatientID || user.UserID }}</span>
               </div>
               <div class="card-row">
                 <div class="mobile-actions">
@@ -1371,11 +1371,40 @@ export default {
         }
       }
     },
+    // async fetchUsers() {
+    //   try {
+    //     const endpoint = this.selectedUserType === 'patient' ? '/patients' : '/dentists';
+    //     const response = await axios.get(endpoint);
+    //     this.users = response.data;
+    //     this.displayedUsers = [...this.users];
+    //     this.updateDisplayedUsers();
+    //   } catch (error) {
+    //     console.error(`Error fetching ${this.selectedUserType}:`, error);
+    //     this.users = [];
+    //     this.displayedUsers = [];
+    //   }
+    // },
     async fetchUsers() {
       try {
-        const endpoint = this.selectedUserType === 'patient' ? '/patients' : '/dentists';
-        const response = await axios.get(endpoint);
-        this.users = response.data;
+        let endpoint, response;
+        if (this.selectedUserType === 'patient') {
+          // Use the same endpoint as HRPatientList
+          response = await axios.get('/patient-list');
+          // Transform the data to match the expected structure
+          this.users = response.data.data.map(patient => ({
+            UserID: patient.PatientID,  // Map PatientID to UserID for consistency
+            PatientID: patient.PatientID,
+            LastName: patient.user.LastName,
+            FirstName: patient.user.FirstName,
+            AccountStatus: patient.user.AccountStatus || 'active',
+            // Include the user object for other data access
+            user: patient.user
+          }));
+        } else {
+          endpoint = '/dentists';
+          response = await axios.get(endpoint);
+          this.users = response.data;
+        }
         this.displayedUsers = [...this.users];
         this.updateDisplayedUsers();
       } catch (error) {
@@ -1399,7 +1428,7 @@ export default {
       const query = this.searchQuery.toLowerCase();
       return (
         `${user.LastName} ${user.FirstName}`.toLowerCase().includes(query) ||
-        user.UserID.toString().includes(query) ||
+        (user.PatientID || user.UserID).toString().includes(query) ||
         (user.AccountStatus || '').toLowerCase().includes(query)
       );
     },
@@ -1471,7 +1500,7 @@ export default {
         valueA = valueA || '';
         valueB = valueB || '';
 
-        if (key === 'UserID') {
+        if (key === 'UserID' || key === 'PatientID') {
           valueA = parseInt(valueA, 10);
           valueB = parseInt(valueB, 10);
           return direction === 'asc' ? valueA - valueB : valueB - valueA;
