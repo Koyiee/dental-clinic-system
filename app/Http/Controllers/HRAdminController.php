@@ -69,16 +69,16 @@ class HRAdminController extends Controller
             'UserID' => $user->UserID,
         ]);
 
+        // Determine user role for logging
+        $userRole = $hrAdmin->userAccount && $hrAdmin->userAccount->UserType === 'Owner' ? 'Owner' : 'HR Admin';
+        $userName = "{$hrAdmin->FirstName} {$hrAdmin->LastName}";
+
         // Dispatch UserActionOccurred event for account creation
         event(new \App\Events\UserActionOccurred(
             $hrAdmin->UserID,
             'Account Created',
-            "HR Admin {$hrAdmin->FirstName} {$hrAdmin->LastName} created {$account->UserType} account for {$user->FirstName} {$user->LastName}"
+            "{$userRole} {$userName} created {$account->UserType} account for {$user->FirstName} {$user->LastName}"
         ));
-        \Log::info('HR Admin account created successfully', [
-            'user_id' => $user->UserID,
-            'hr_admin_id' => $hrAdmin->UserID,
-        ]);
 
         // Send email notification
         try {
