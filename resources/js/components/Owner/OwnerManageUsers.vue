@@ -196,7 +196,7 @@
           <table class="users-table desktop-table">
             <thead>
               <tr>
-                <th style="padding-left: 25px;">User ID</th>
+                <th style="padding-left: 25px;">{{ selectedUserType === 'patient' ? 'Patient ID' : 'User ID' }}</th>
                 <th>{{ selectedUserType === 'patient' ? 'Patient Name' : 
                       selectedUserType === 'dentist' ? 'Dentist Name' : 
                       selectedUserType === 'hradmin' ? 'HR Admin Name' : 'Owner Name' }}</th>
@@ -210,7 +210,7 @@
                 :key="user.UserID"
                 class="user-row"
               >
-                <td style="padding-left: 25px;">{{ user.UserID }}</td>
+                <td style="padding-left: 25px;">{{ user.PatientID || user.UserID }}</td>
                 <td>
                   {{ user.LastName }}, {{ user.FirstName }}
                   {{ user.IsSuperOwner && selectedUserType === 'owner' ? '(Superowner)' : '' }}
@@ -267,8 +267,8 @@
             </div>
             <div class="card-content">
               <div class="card-row">
-                <span class="card-label">User ID:</span>
-                <span>{{ user.UserID }}</span>
+                <span class="card-label">{{ selectedUserType === 'patient' ? 'Patient ID:' : 'User ID:' }}</span>
+                <span>{{ user.PatientID || user.UserID }}</span>
               </div>
               <div class="card-row">
                 <div class="mobile-actions">
@@ -813,7 +813,6 @@
     </div>
   </section>
 </template>
-
 
 <script>
 import axios from 'axios';
@@ -1423,23 +1422,38 @@ export default {
       }
     },
     async fetchUsers() {
-      try {
-        let endpoint = '';
-        switch(this.selectedUserType) {
-          case 'patient': endpoint = '/patients'; break;
-          case 'dentist': endpoint = '/dentists'; break;
-          case 'hradmin': endpoint = '/hradmins'; break;
-          case 'owner': endpoint = '/owners'; break;
-        }
-        
-        const response = await axios.get(endpoint);
-        console.log(`Fetched ${this.selectedUserType} data:`, response.data);
-        this.users = response.data;
-      } catch (error) {
-        console.error(`Error fetching ${this.selectedUserType}:`, error);
-        this.users = [];
-      }
-    },
+  try {
+    let endpoint = '';
+    let response;
+    
+    switch(this.selectedUserType) {
+      case 'patient': 
+        // Use the same endpoint as HRPatientList
+        response = await axios.get('/patient-list');
+        // Transform the data to match the expected structure
+        this.users = response.data.data.map(patient => ({
+          UserID: patient.PatientID,  // Map PatientID to UserID for consistency
+          PatientID: patient.PatientID,
+          LastName: patient.user.LastName,
+          FirstName: patient.user.FirstName,
+          AccountStatus: patient.user.AccountStatus || 'active',
+          // Include the user object for other data access
+          user: patient.user
+        }));
+        return;
+      case 'dentist': endpoint = '/dentists'; break;
+      case 'hradmin': endpoint = '/hradmins'; break;
+      case 'owner': endpoint = '/owners'; break;
+    }
+    
+    response = await axios.get(endpoint);
+    console.log(`Fetched ${this.selectedUserType} data:`, response.data);
+    this.users = response.data;
+  } catch (error) {
+    console.error(`Error fetching ${this.selectedUserType}:`, error);
+    this.users = [];
+  }
+},
     setMaxDate() {
       const today = new Date();
       this.maxDate = today.toISOString().split('T')[0];
@@ -1478,7 +1492,6 @@ export default {
   },
 };
 </script>
-
 
 <style scoped>
 @import url('https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css');
