@@ -35,14 +35,14 @@ class DentistController extends Controller
             'DayOff.*' => 'string',
         ]);
 
-        // Ensure HR admin is authenticated
-        $hrAdmin = Auth::user();
-        if (!$hrAdmin) {
+        // Ensure user is authenticated
+        $currentUser = Auth::user();
+        if (!$currentUser) {
             \Log::error('No authenticated user');
             return response()->json(['error' => 'Unauthorized'], 401);
         }
 
-        DB::transaction(function () use ($validatedData, $hrAdmin) {
+        DB::transaction(function () use ($validatedData, $currentUser) {
             $user = User::create([
                 'LastName' => $validatedData['LastName'],
                 'FirstName' => $validatedData['FirstName'],
@@ -70,15 +70,19 @@ class DentistController extends Controller
                 'DayOff' => $validatedData['DayOff'] ? json_encode($validatedData['DayOff']) : null,
             ]);
 
-            // Dispatch UserActionOccurred event
+            // Determine user role for logging
+            $userRole = $currentUser->userAccount && $currentUser->userAccount->UserType === 'Owner' ? 'Owner' : 'HR Admin';
+            $userName = "{$currentUser->FirstName} {$currentUser->LastName}";
+
+            // Dispatch UserActionOccurred event for account creation
             event(new UserActionOccurred(
-                $hrAdmin->UserID,
+                $currentUser->UserID,
                 'Account Created',
-                "HR Admin {$hrAdmin->FirstName} {$hrAdmin->LastName} created {$account->UserType} account for {$user->FirstName} {$user->LastName}"
+                "{$userRole} {$userName} created {$account->UserType} account for {$user->FirstName} {$user->LastName}"
             ));
             \Log::info('Dentist account created successfully', [
                 'user_id' => $user->UserID,
-                'hr_admin_id' => $hrAdmin->UserID,
+                'created_by' => $currentUser->UserID,
             ]);
         });
 
