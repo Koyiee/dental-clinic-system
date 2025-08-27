@@ -422,12 +422,12 @@
         </div>
 
         <div class="form-full">
-          <label for="GovernmentID">Upload Government ID <span>*</span> <span class="hint-text">jpg/png, max 10MB</span></label>
-          <input type="file" id="GovernmentID" @change="handleFileUpload" required accept="image/jpeg,image/png" ref="governmentIDInput">
-          <div v-if="formSubmitted && !formData.GovernmentID" class="invalid-feedback">
-            Please upload a valid government ID (JPG or PNG)
-          </div>
-        </div>
+  <label for="GovernmentID">Upload Government ID <span>*</span> <span class="hint-text">Any image format, max 10MB, will be converted to JPG</span></label>
+  <input type="file" id="GovernmentID" @change="handleFileUpload" required capture="environment" ref="governmentIDInput">
+  <div v-if="formSubmitted && !formData.GovernmentID" class="invalid-feedback">
+    Please upload a valid government ID
+  </div>
+</div>
 
         <div v-if="imagePreview" class="image-preview">
           <p class="preview">Preview:</p>
@@ -627,18 +627,20 @@ export default {
     },
     handleFileUpload(event) {
       const file = event.target.files[0];
-      
+
       if (file) {
-        const validTypes = ['image/jpeg', 'image/png'];
-        if (!validTypes.includes(file.type)) {
-          this.errors.push('Government ID must be a JPG or PNG file');
+        const maxSize = 10 * 1024 * 1024; // 10MB
+
+        // Validate that the file is an image
+        if (!file.type.startsWith('image/')) {
+          this.errors.push('Government ID must be an image file');
           this.formData.GovernmentID = null;
           this.imagePreview = null;
           this.$refs.governmentIDInput.value = '';
           return;
         }
 
-        const maxSize = 10 * 1024 * 1024;
+        // Validate file size
         if (file.size > maxSize) {
           this.errors.push('Government ID file size must not exceed 10MB');
           this.formData.GovernmentID = null;
@@ -647,12 +649,52 @@ export default {
           return;
         }
 
+        // Store the original file and generate preview
         this.formData.GovernmentID = file;
         this.imagePreview = URL.createObjectURL(file);
       } else {
         this.formData.GovernmentID = null;
         this.imagePreview = null;
       }
+    },
+    async convertToJpeg(file) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        const objectUrl = URL.createObjectURL(file);
+
+        img.onload = () => {
+          // Create a canvas to convert the image to JPEG
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          canvas.width = img.width;
+          canvas.height = img.height;
+
+          // Draw the image onto the canvas
+          ctx.drawImage(img, 0, 0);
+
+          // Convert the canvas content to a JPEG blob
+          canvas.toBlob(
+            (blob) => {
+              // Create a new File object from the blob
+              const jpegFile = new File([blob], file.name.replace(/\.[^/.]+$/, '.jpg'), {
+                type: 'image/jpeg',
+                lastModified: Date.now(),
+              });
+              URL.revokeObjectURL(objectUrl);
+              resolve(jpegFile);
+            },
+            'image/jpeg',
+            0.9 // JPEG quality (0 to 1)
+          );
+        };
+
+        img.onerror = () => {
+          URL.revokeObjectURL(objectUrl);
+          reject(new Error('Error loading the image file'));
+        };
+
+        img.src = objectUrl;
+      });
     },
     scrollToFirstError() {
       const firstInvalid = this.$el.querySelector('.was-validated :invalid, .form-group .invalid-feedback:not(:empty)');
