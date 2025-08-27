@@ -422,12 +422,12 @@
         </div>
 
         <div class="form-full">
-          <label for="GovernmentID">Upload Government ID <span>*</span> <span class="hint-text">jpg/png, max 10MB</span></label>
-          <input type="file" id="GovernmentID" @change="handleFileUpload" required accept="image/jpeg,image/png" ref="governmentIDInput">
-          <div v-if="formSubmitted && !formData.GovernmentID" class="invalid-feedback">
-            Please upload a valid government ID (JPG or PNG)
-          </div>
-        </div>
+  <label for="GovernmentID">Upload Government ID <span>*</span> <span class="hint-text">Any image format, max 10MB, will be converted to JPG</span></label>
+  <input type="file" id="GovernmentID" @change="handleFileUpload" required accept="image/*" capture="environment" ref="governmentIDInput">
+  <div v-if="formSubmitted && !formData.GovernmentID" class="invalid-feedback">
+    Please upload a valid government ID
+  </div>
+</div>
 
         <div v-if="imagePreview" class="image-preview">
           <p class="preview">Preview:</p>
@@ -626,34 +626,70 @@ export default {
       }
     },
     handleFileUpload(event) {
-      const file = event.target.files[0];
-      
-      if (file) {
-        const validTypes = ['image/jpeg', 'image/png'];
-        if (!validTypes.includes(file.type)) {
-          this.errors.push('Government ID must be a JPG or PNG file');
-          this.formData.GovernmentID = null;
-          this.imagePreview = null;
-          this.$refs.governmentIDInput.value = '';
-          return;
-        }
+  const file = event.target.files[0];
 
-        const maxSize = 10 * 1024 * 1024;
-        if (file.size > maxSize) {
-          this.errors.push('Government ID file size must not exceed 10MB');
-          this.formData.GovernmentID = null;
-          this.imagePreview = null;
-          this.$refs.governmentIDInput.value = '';
-          return;
-        }
+  if (file) {
+    const maxSize = 10 * 1024 * 1024; // 10MB
 
-        this.formData.GovernmentID = file;
-        this.imagePreview = URL.createObjectURL(file);
-      } else {
-        this.formData.GovernmentID = null;
-        this.imagePreview = null;
-      }
-    },
+    // Validate that the file is an image
+    if (!file.type.startsWith('image/')) {
+      this.errors.push('Government ID must be an image file');
+      this.formData.GovernmentID = null;
+      this.imagePreview = null;
+      this.$refs.governmentIDInput.value = '';
+      return;
+    }
+
+    // Validate file size
+    if (file.size > maxSize) {
+      this.errors.push('Government ID file size must not exceed 10MB');
+      this.formData.GovernmentID = null;
+      this.imagePreview = null;
+      this.$refs.governmentIDInput.value = '';
+      return;
+    }
+
+    // Store the original file and generate preview
+    this.formData.GovernmentID = file;
+    this.imagePreview = URL.createObjectURL(file);
+  } else {
+    this.formData.GovernmentID = null;
+    this.imagePreview = null;
+  }
+},
+async convertToJpeg(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.drawImage(img, 0, 0);
+      canvas.toBlob(
+        (blob) => {
+          const jpegFile = new File([blob], file.name.replace(/\.[^/.]+$/, '.jpg'), {
+            type: 'image/jpeg',
+            lastModified: Date.now(),
+          });
+          URL.revokeObjectURL(objectUrl);
+          resolve(jpegFile);
+        },
+        'image/jpeg',
+        0.9
+      );
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error('Error loading the image file'));
+    };
+
+    img.src = objectUrl;
+  });
+},
     scrollToFirstError() {
       const firstInvalid = this.$el.querySelector('.was-validated :invalid, .form-group .invalid-feedback:not(:empty)');
       if (firstInvalid) {
@@ -664,96 +700,113 @@ export default {
       }
     },
     async submitForm() {
-      this.formSubmitted = true;
-      this.errors = [];
+  this.formSubmitted = true;
+  this.errors = [];
 
-      const form = this.$el.querySelector('form');
-      form.classList.add('was-validated');
+  const form = this.$el.querySelector('form');
+  form.classList.add('was-validated');
 
-      await this.checkEmailAvailability();
-      await this.checkUsernameAvailability();
-      this.validateBirthDate();
+  await this.checkEmailAvailability();
+  await this.checkUsernameAvailability();
+  this.validateBirthDate();
 
-      if (this.birthDateInvalid || this.ageInvalid) {
-        if (this.birthDateInvalid) {
-          this.errors.push('You must be at least 6 months old to register');
-        }
-        if (this.ageInvalid) {
-          this.errors.push('Age must not exceed 100 years');
-        }
-      }
+  if (this.birthDateInvalid || this.ageInvalid) {
+    if (this.birthDateInvalid) {
+      this.errors.push('You must be at least 6 months old to register');
+    }
+    if (this.ageInvalid) {
+      this.errors.push('Age must not exceed 100 years');
+    }
+  }
 
-      const passwordPattern = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[\W_]).{8,}$/;
-      if (!this.formData.Password || !passwordPattern.test(this.formData.Password)) {
-        this.errors.push('Password must be at least 8 characters and include uppercase, lowercase, number, and symbol');
-      }
-      if (!this.formData.Password_confirmation) {
-        this.errors.push('Please confirm your password');
-      } else if (this.formData.Password !== this.formData.Password_confirmation) {
-        this.errors.push('Passwords do not match');
-      }
-      if (!this.formData.ContactNumber || !this.formData.ContactNumber.match(/^\+63\d{10}$/)) {
-        this.errors.push('Please enter a valid contact number (+63 followed by 10 digits)');
-      }
-      if (!this.formData.GovernmentID) {
-        this.errors.push('Please upload a valid government ID');
-      }
-      if (this.emailTaken) {
-        this.errors.push('This email is already in use');
-      }
-      if (this.usernameTaken) {
-        this.errors.push('This username is already in use');
-      }
-      if (this.formData.HomeTelephoneNumber && !this.formData.HomeTelephoneNumber.match(/^02\d{8}$/)) {
-        this.errors.push('Please enter a valid home telephone number (02 followed by 8 digits)');
-      }
-      if (this.formData.OfficeNumber && !this.formData.OfficeNumber.match(/^02\d{8}$/)) {
-        this.errors.push('Please enter a valid office number (02 followed by 8 digits)');
-      }
+  const passwordPattern = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[\W_]).{8,}$/;
+  if (!this.formData.Password || !passwordPattern.test(this.formData.Password)) {
+    this.errors.push('Password must be at least 8 characters and include uppercase, lowercase, number, and symbol');
+  }
+  if (!this.formData.Password_confirmation) {
+    this.errors.push('Please confirm your password');
+  } else if (this.formData.Password !== this.formData.Password_confirmation) {
+    this.errors.push('Passwords do not match');
+  }
+  if (!this.formData.ContactNumber || !this.formData.ContactNumber.match(/^\+63\d{10}$/)) {
+    this.errors.push('Please enter a valid contact number (+63 followed by 10 digits)');
+  }
+  if (!this.formData.GovernmentID) {
+    this.errors.push('Please upload a valid government ID');
+  }
+  if (this.emailTaken) {
+    this.errors.push('This email is already in use');
+  }
+  if (this.usernameTaken) {
+    this.errors.push('This username is already in use');
+  }
+  if (this.formData.HomeTelephoneNumber && !this.formData.HomeTelephoneNumber.match(/^02\d{8}$/)) {
+    this.errors.push('Please enter a valid home telephone number (02 followed by 8 digits)');
+  }
+  if (this.formData.OfficeNumber && !this.formData.OfficeNumber.match(/^02\d{8}$/)) {
+    this.errors.push('Please enter a valid office number (02 followed by 8 digits)');
+  }
 
-      if (!form.checkValidity() || this.errors.length) {
-        console.log('Form errors:', this.errors);
-        this.$nextTick(() => this.scrollToFirstError());
-        return;
-      }
+  if (!form.checkValidity() || this.errors.length) {
+    console.log('Form errors:', this.errors);
+    this.$nextTick(() => this.scrollToFirstError());
+    return;
+  }
 
-      const formData = new FormData();
-      for (const key in this.formData) {
-        console.log(`Appending form field: ${key}`, this.formData[key]);
-        formData.append(key, this.formData[key] || '');
-      }
-      console.log('Form data being sent:', Object.fromEntries(formData));
+  // Convert the uploaded image to JPEG
+  let convertedFile = this.formData.GovernmentID;
+  if (this.formData.GovernmentID && this.formData.GovernmentID.type !== 'image/jpeg') {
+    try {
+      convertedFile = await this.convertToJpeg(this.formData.GovernmentID);
+    } catch (error) {
+      this.errors.push('Error converting image to JPEG');
+      this.$nextTick(() => this.scrollToFirstError());
+      return;
+    }
+  }
 
-      try {
-        const response = await axios.post('/users', formData, {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-        });
+  // Prepare form data
+  const formData = new FormData();
+  for (const key in this.formData) {
+    if (key === 'GovernmentID') {
+      formData.append(key, convertedFile);
+    } else {
+      formData.append(key, this.formData[key] || '');
+    }
+    console.log(`Appending form field: ${key}`, this.formData[key]);
+  }
+  console.log('Form data being sent:', Object.fromEntries(formData));
 
-        console.log('Signup response:', response.data);
-        
-        await Swal.fire({
-          icon: 'success',
-          title: 'Account has been created',
-          showConfirmButton: false,
-          timer: 2000
-        });
+  try {
+    const response = await axios.post('/users', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
 
-        const redirectUrl = response.data.redirectUrl || '/';
-        window.location.href = redirectUrl;
-        this.errors = [];
-      } catch (error) {
-        console.error('Submission error:', error);
-        if (error.response && error.response.status === 422) {
-          this.errors = Object.values(error.response.data.errors).flat();
-          this.$nextTick(() => this.scrollToFirstError());
-        } else {
-          this.errors = ['An unexpected error occurred. Please try again later.'];
-          this.$nextTick(() => this.scrollToFirstError());
-        }
-      }
-    },
+    console.log('Signup response:', response.data);
+    
+    await Swal.fire({
+      icon: 'success',
+      title: 'Account has been created',
+      showConfirmButton: false,
+      timer: 2000
+    });
+
+    const redirectUrl = response.data.redirectUrl || '/';
+    window.location.href = redirectUrl;
+    this.errors = [];
+  } catch (error) {
+    console.error('Submission error:', error);
+    if (error.response && error.response.status === 422) {
+      this.errors = Object.values(error.response.data.errors).flat();
+      this.$nextTick(() => this.scrollToFirstError());
+    } else {
+      this.errors = ['An unexpected error occurred. Please try again later.'];
+      this.$nextTick(() => this.scrollToFirstError());
+    }
+  }
+},
     validateBirthDate() {
       const birthdate = new Date(this.formData.BirthDate);
       const today = new Date();
