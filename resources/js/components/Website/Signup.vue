@@ -568,46 +568,6 @@ export default {
     };
   },
   methods: {
-    // Pure JS EXIF Orientation Extractor (no libraries needed)
-    async getOrientation(file) {
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const view = new DataView(e.target.result);
-          if (view.getUint16(0, false) !== 0xFFD8) {
-            return resolve(-2);  // Not JPEG
-          }
-          let length = view.byteLength;
-          let offset = 2;
-          while (offset < length) {
-            const marker = view.getUint16(offset, false);
-            offset += 2;
-            if (marker === 0xFFE1) {
-              if (view.getUint32(offset += 2, false) !== 0x45786966) {
-                return resolve(-1);  // No EXIF
-              }
-              const little = view.getUint16(offset += 6, false) === 0x4949;
-              offset += view.getUint32(offset + 4, little);
-              const tags = view.getUint16(offset, little);
-              offset += 2;
-              for (let i = 0; i < tags; i++) {
-                if (view.getUint16(offset + (i * 12), little) === 0x0112) {
-                  return resolve(view.getUint16(offset + (i * 12) + 8, little));
-                }
-              }
-            } else if ((marker & 0xFF00) !== 0xFF00) {
-              break;
-            } else {
-              offset += view.getUint16(offset, false);
-            }
-          }
-          resolve(-1);  // No orientation found
-        };
-        reader.onerror = () => resolve(-1);
-        reader.readAsArrayBuffer(file.slice(0, 128 * 1024));  // Limit to first 128KB for perf
-      });
-    },
-
     async handleFileUpload(event) {
       const file = event.target.files[0];
       if (!file || file.size === 0 || !file.type.startsWith('image/')) {
@@ -630,10 +590,8 @@ export default {
       // Integrity check: Try loading in Image
       const img = new Image();
       img.onload = () => {
-        this.formData.GovernmentID = file;
-        this.imagePreview = URL.createObjectURL(file);
-        // Auto-convert always for consistency (strips EXIF, fixes orientation)
-        this.convertSafely(file);
+        // Auto-convert always for consistency (compresses as-is, no rotation)
+        this.convertToJpegAsIs(file);
       };
       img.onerror = () => {
         this.errors.push('Corrupted image');
@@ -644,13 +602,9 @@ export default {
       img.src = URL.createObjectURL(file);
     },
 
-    async convertSafely(originalFile) {
+    async convertToJpegAsIs(originalFile) {
       try {
-        // Step 1: Extract orientation using pure JS parser
-        const orientation = await this.getOrientation(originalFile);
-        console.log('EXIF Orientation:', orientation);  // For debugging
-
-        // Step 2: Load image
+        // Load image (as-is, no EXIF/orientation handling)
         const img = new Image();
         img.src = URL.createObjectURL(originalFile);
         await new Promise((resolve, reject) => {
@@ -658,69 +612,22 @@ export default {
           img.onerror = () => reject(new Error('Failed to load image'));
         });
 
-        // Step 3: Create canvas with proper dimensions (handle 90/270 deg swaps)
+        // Create canvas (no rotation/flips—just draw as-is)
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
-        let { width: drawWidth, height: drawHeight } = img;
 
-        if (orientation > 4) {  // Portrait/90-270 deg: swap width/height
-          drawWidth = img.height;
-          drawHeight = img.width;
-        }
-
-        // Cap resolution for mobile perf (e.g., max 1920px wide)
+        // Cap resolution for mobile perf (e.g., max 1920px wide, no orientation swap)
         const maxWidth = 1920;
+        let drawWidth = img.width;
+        let drawHeight = img.height;
         const scale = Math.min(1, maxWidth / drawWidth);
         canvas.width = drawWidth * scale;
         canvas.height = drawHeight * scale;
 
-        // Step 4: Apply orientation transform (rotate/mirror based on EXIF value)
-        ctx.save();
-        let rad = 0;
-        if (orientation > 1) {
-          rad = (orientation - 1) * (Math.PI / 2);  // Convert to radians
-        }
+        // Draw image as-is (no transforms)
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-        switch (orientation) {
-          case 2:  // Flip horizontal
-            ctx.translate(canvas.width, 0);
-            ctx.scale(-1, 1);
-            break;
-          case 3:  // 180° rotate
-            ctx.translate(canvas.width, canvas.height);
-            ctx.rotate(Math.PI);
-            break;
-          case 4:  // Flip vertical
-            ctx.translate(0, canvas.height);
-            ctx.scale(1, -1);
-            break;
-          case 5:  // 90° rotate + flip horizontal
-            ctx.translate(canvas.width, 0);
-            ctx.scale(-1, 1);
-            ctx.rotate(Math.PI / 2);
-            break;
-          case 6:  // 90° rotate
-            ctx.rotate(Math.PI / 2);
-            ctx.translate(0, -canvas.height);
-            break;
-          case 7:  // 270° rotate + flip horizontal
-            ctx.translate(canvas.width, canvas.height);
-            ctx.scale(-1, 1);
-            ctx.rotate(-Math.PI / 2);
-            break;
-          case 8:  // 270° rotate
-            ctx.rotate(-Math.PI / 2);
-            ctx.translate(-canvas.width, 0);
-            break;
-          default:  // 1: No rotation
-            break;
-        }
-
-        // Draw the (possibly scaled) image
-        ctx.drawImage(img, 0, 0, drawWidth * scale, drawHeight * scale);
-        ctx.restore();
-
-        // Step 5: Compress to JPEG blob (quality 0.85; retry if too big)
+        // Compress to JPEG blob (quality 0.85; retry if too big)
         let quality = 0.85;
         let blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
         
@@ -737,7 +644,7 @@ export default {
         const cleanFile = new File([blob], 'gov-id.jpg', { type: 'image/jpeg' });
         this.formData.GovernmentID = cleanFile;
         this.imagePreview = URL.createObjectURL(cleanFile);
-        console.log('Converted file size:', blob.size, 'bytes');  // Debug
+        console.log('Converted file size (as-is):', blob.size, 'bytes');  // Debug
       } catch (e) {
         console.error('Conversion error:', e);
         this.errors.push('Conversion failed: ' + e.message);
@@ -864,7 +771,7 @@ export default {
         return;
       }
 
-      // Convert the uploaded image to JPEG (now always handled in handleFileUpload/convertSafely)
+      // Use the converted file (handled on select)
       const convertedFile = this.formData.GovernmentID;
       if (!convertedFile) {
         this.errors.push('Please upload a valid government ID');
@@ -893,7 +800,7 @@ export default {
       }
 
       try {
-        console.log('Sending FormData with file size:', convertedFile.size);  // Debug
+        console.log('Sending FormData with file size (as-is):', convertedFile.size);  // Debug
         const response = await axios.post('/users', formData, {
           timeout: 30000,  // 30s for slow mobile uploads
           onUploadProgress: (progressEvent) => {
