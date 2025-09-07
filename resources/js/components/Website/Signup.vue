@@ -568,6 +568,182 @@ export default {
     };
   },
   methods: {
+    // Pure JS EXIF Orientation Extractor (no libraries needed)
+    async getOrientation(file) {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const view = new DataView(e.target.result);
+          if (view.getUint16(0, false) !== 0xFFD8) {
+            return resolve(-2);  // Not JPEG
+          }
+          let length = view.byteLength;
+          let offset = 2;
+          while (offset < length) {
+            const marker = view.getUint16(offset, false);
+            offset += 2;
+            if (marker === 0xFFE1) {
+              if (view.getUint32(offset += 2, false) !== 0x45786966) {
+                return resolve(-1);  // No EXIF
+              }
+              const little = view.getUint16(offset += 6, false) === 0x4949;
+              offset += view.getUint32(offset + 4, little);
+              const tags = view.getUint16(offset, little);
+              offset += 2;
+              for (let i = 0; i < tags; i++) {
+                if (view.getUint16(offset + (i * 12), little) === 0x0112) {
+                  return resolve(view.getUint16(offset + (i * 12) + 8, little));
+                }
+              }
+            } else if ((marker & 0xFF00) !== 0xFF00) {
+              break;
+            } else {
+              offset += view.getUint16(offset, false);
+            }
+          }
+          resolve(-1);  // No orientation found
+        };
+        reader.onerror = () => resolve(-1);
+        reader.readAsArrayBuffer(file.slice(0, 128 * 1024));  // Limit to first 128KB for perf
+      });
+    },
+
+    async handleFileUpload(event) {
+      const file = event.target.files[0];
+      if (!file || file.size === 0 || !file.type.startsWith('image/')) {
+        this.errors.push('Government ID must be an image file');
+        this.formData.GovernmentID = null;
+        this.imagePreview = null;
+        this.$refs.governmentIDInput.value = '';
+        return;
+      }
+
+      const maxSize = 10 * 1024 * 1024; // 10MB
+      if (file.size > maxSize) {
+        this.errors.push('Government ID file size must not exceed 10MB');
+        this.formData.GovernmentID = null;
+        this.imagePreview = null;
+        this.$refs.governmentIDInput.value = '';
+        return;
+      }
+
+      // Integrity check: Try loading in Image
+      const img = new Image();
+      img.onload = () => {
+        this.formData.GovernmentID = file;
+        this.imagePreview = URL.createObjectURL(file);
+        // Auto-convert always for consistency (strips EXIF, fixes orientation)
+        this.convertSafely(file);
+      };
+      img.onerror = () => {
+        this.errors.push('Corrupted image');
+        this.formData.GovernmentID = null;
+        this.imagePreview = null;
+        this.$refs.governmentIDInput.value = '';
+      };
+      img.src = URL.createObjectURL(file);
+    },
+
+    async convertSafely(originalFile) {
+      try {
+        // Step 1: Extract orientation using pure JS parser
+        const orientation = await this.getOrientation(originalFile);
+        console.log('EXIF Orientation:', orientation);  // For debugging
+
+        // Step 2: Load image
+        const img = new Image();
+        img.src = URL.createObjectURL(originalFile);
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = () => reject(new Error('Failed to load image'));
+        });
+
+        // Step 3: Create canvas with proper dimensions (handle 90/270 deg swaps)
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        let { width: drawWidth, height: drawHeight } = img;
+
+        if (orientation > 4) {  // Portrait/90-270 deg: swap width/height
+          drawWidth = img.height;
+          drawHeight = img.width;
+        }
+
+        // Cap resolution for mobile perf (e.g., max 1920px wide)
+        const maxWidth = 1920;
+        const scale = Math.min(1, maxWidth / drawWidth);
+        canvas.width = drawWidth * scale;
+        canvas.height = drawHeight * scale;
+
+        // Step 4: Apply orientation transform (rotate/mirror based on EXIF value)
+        ctx.save();
+        let rad = 0;
+        if (orientation > 1) {
+          rad = (orientation - 1) * (Math.PI / 2);  // Convert to radians
+        }
+
+        switch (orientation) {
+          case 2:  // Flip horizontal
+            ctx.translate(canvas.width, 0);
+            ctx.scale(-1, 1);
+            break;
+          case 3:  // 180° rotate
+            ctx.translate(canvas.width, canvas.height);
+            ctx.rotate(Math.PI);
+            break;
+          case 4:  // Flip vertical
+            ctx.translate(0, canvas.height);
+            ctx.scale(1, -1);
+            break;
+          case 5:  // 90° rotate + flip horizontal
+            ctx.translate(canvas.width, 0);
+            ctx.scale(-1, 1);
+            ctx.rotate(Math.PI / 2);
+            break;
+          case 6:  // 90° rotate
+            ctx.rotate(Math.PI / 2);
+            ctx.translate(0, -canvas.height);
+            break;
+          case 7:  // 270° rotate + flip horizontal
+            ctx.translate(canvas.width, canvas.height);
+            ctx.scale(-1, 1);
+            ctx.rotate(-Math.PI / 2);
+            break;
+          case 8:  // 270° rotate
+            ctx.rotate(-Math.PI / 2);
+            ctx.translate(-canvas.width, 0);
+            break;
+          default:  // 1: No rotation
+            break;
+        }
+
+        // Draw the (possibly scaled) image
+        ctx.drawImage(img, 0, 0, drawWidth * scale, drawHeight * scale);
+        ctx.restore();
+
+        // Step 5: Compress to JPEG blob (quality 0.85; retry if too big)
+        let quality = 0.85;
+        let blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
+        
+        // Retry loop if >2MB (lower quality until <2MB)
+        while (blob.size > 2048 * 1024 && quality > 0.3) {
+          quality -= 0.15;  // Drop to 0.7, then 0.55, etc.
+          blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
+        }
+
+        if (blob.size > 2048 * 1024) {
+          throw new Error('Image too large even after compression');
+        }
+
+        const cleanFile = new File([blob], 'gov-id.jpg', { type: 'image/jpeg' });
+        this.formData.GovernmentID = cleanFile;
+        this.imagePreview = URL.createObjectURL(cleanFile);
+        console.log('Converted file size:', blob.size, 'bytes');  // Debug
+      } catch (e) {
+        console.error('Conversion error:', e);
+        this.errors.push('Conversion failed: ' + e.message);
+      }
+    },
+
     async checkEmailAvailability() {
       if (!this.formData.Email) {
         this.emailInvalid = true;
@@ -625,71 +801,6 @@ export default {
         this.usernameErrorMessage = 'Error checking username availability';
       }
     },
-    handleFileUpload(event) {
-  const file = event.target.files[0];
-
-  if (file) {
-    const maxSize = 10 * 1024 * 1024; // 10MB
-
-    // Validate that the file is an image
-    if (!file.type.startsWith('image/')) {
-      this.errors.push('Government ID must be an image file');
-      this.formData.GovernmentID = null;
-      this.imagePreview = null;
-      this.$refs.governmentIDInput.value = '';
-      return;
-    }
-
-    // Validate file size
-    if (file.size > maxSize) {
-      this.errors.push('Government ID file size must not exceed 10MB');
-      this.formData.GovernmentID = null;
-      this.imagePreview = null;
-      this.$refs.governmentIDInput.value = '';
-      return;
-    }
-
-    // Store the original file and generate preview
-    this.formData.GovernmentID = file;
-    this.imagePreview = URL.createObjectURL(file);
-  } else {
-    this.formData.GovernmentID = null;
-    this.imagePreview = null;
-  }
-},
-async convertToJpeg(file) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const objectUrl = URL.createObjectURL(file);
-
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      canvas.width = img.width;
-      canvas.height = img.height;
-      ctx.drawImage(img, 0, 0);
-      canvas.toBlob(
-        (blob) => {
-          const jpegFile = new File([blob], file.name.replace(/\.[^/.]+$/, '.jpg'), {
-            type: 'image/jpeg',
-            lastModified: Date.now(),
-          });
-          URL.revokeObjectURL(objectUrl);
-          resolve(jpegFile);
-        },
-        'image/jpeg',
-        0.9
-      );
-    };
-
-    img.onerror = () => {
-      URL.revokeObjectURL(objectUrl);
-      reject(new Error('Error loading the image file'));
-    };
-
-    img.src = objectUrl;
-  });
-},
     scrollToFirstError() {
       const firstInvalid = this.$el.querySelector('.was-validated :invalid, .form-group .invalid-feedback:not(:empty)');
       if (firstInvalid) {
@@ -700,113 +811,123 @@ async convertToJpeg(file) {
       }
     },
     async submitForm() {
-  this.formSubmitted = true;
-  this.errors = [];
+      this.formSubmitted = true;
+      this.errors = [];
 
-  const form = this.$el.querySelector('form');
-  form.classList.add('was-validated');
+      const form = this.$el.querySelector('form');
+      form.classList.add('was-validated');
 
-  await this.checkEmailAvailability();
-  await this.checkUsernameAvailability();
-  this.validateBirthDate();
+      await this.checkEmailAvailability();
+      await this.checkUsernameAvailability();
+      this.validateBirthDate();
 
-  if (this.birthDateInvalid || this.ageInvalid) {
-    if (this.birthDateInvalid) {
-      this.errors.push('You must be at least 6 months old to register');
-    }
-    if (this.ageInvalid) {
-      this.errors.push('Age must not exceed 100 years');
-    }
-  }
+      if (this.birthDateInvalid || this.ageInvalid) {
+        if (this.birthDateInvalid) {
+          this.errors.push('You must be at least 6 months old to register');
+        }
+        if (this.ageInvalid) {
+          this.errors.push('Age must not exceed 100 years');
+        }
+      }
 
-  const passwordPattern = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[\W_]).{8,}$/;
-  if (!this.formData.Password || !passwordPattern.test(this.formData.Password)) {
-    this.errors.push('Password must be at least 8 characters and include uppercase, lowercase, number, and symbol');
-  }
-  if (!this.formData.Password_confirmation) {
-    this.errors.push('Please confirm your password');
-  } else if (this.formData.Password !== this.formData.Password_confirmation) {
-    this.errors.push('Passwords do not match');
-  }
-  if (!this.formData.ContactNumber || !this.formData.ContactNumber.match(/^\+63\d{10}$/)) {
-    this.errors.push('Please enter a valid contact number (+63 followed by 10 digits)');
-  }
-  if (!this.formData.GovernmentID) {
-    this.errors.push('Please upload a valid government ID');
-  }
-  if (this.emailTaken) {
-    this.errors.push('This email is already in use');
-  }
-  if (this.usernameTaken) {
-    this.errors.push('This username is already in use');
-  }
-  if (this.formData.HomeTelephoneNumber && !this.formData.HomeTelephoneNumber.match(/^02\d{8}$/)) {
-    this.errors.push('Please enter a valid home telephone number (02 followed by 8 digits)');
-  }
-  if (this.formData.OfficeNumber && !this.formData.OfficeNumber.match(/^02\d{8}$/)) {
-    this.errors.push('Please enter a valid office number (02 followed by 8 digits)');
-  }
+      const passwordPattern = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[\W_]).{8,}$/;
+      if (!this.formData.Password || !passwordPattern.test(this.formData.Password)) {
+        this.errors.push('Password must be at least 8 characters and include uppercase, lowercase, number, and symbol');
+      }
+      if (!this.formData.Password_confirmation) {
+        this.errors.push('Please confirm your password');
+      } else if (this.formData.Password !== this.formData.Password_confirmation) {
+        this.errors.push('Passwords do not match');
+      }
+      if (!this.formData.ContactNumber || !this.formData.ContactNumber.match(/^\+63\d{10}$/)) {
+        this.errors.push('Please enter a valid contact number (+63 followed by 10 digits)');
+      }
+      if (!this.formData.GovernmentID) {
+        this.errors.push('Please upload a valid government ID');
+      }
+      if (this.emailTaken) {
+        this.errors.push('This email is already in use');
+      }
+      if (this.usernameTaken) {
+        this.errors.push('This username is already in use');
+      }
+      if (this.formData.HomeTelephoneNumber && !this.formData.HomeTelephoneNumber.match(/^02\d{8}$/)) {
+        this.errors.push('Please enter a valid home telephone number (02 followed by 8 digits)');
+      }
+      if (this.formData.OfficeNumber && !this.formData.OfficeNumber.match(/^02\d{8}$/)) {
+        this.errors.push('Please enter a valid office number (02 followed by 8 digits)');
+      }
 
-  if (!form.checkValidity() || this.errors.length) {
-    console.log('Form errors:', this.errors);
-    this.$nextTick(() => this.scrollToFirstError());
-    return;
-  }
+      if (!form.checkValidity() || this.errors.length) {
+        console.log('Form errors:', this.errors);
+        this.$nextTick(() => this.scrollToFirstError());
+        return;
+      }
 
-  // Convert the uploaded image to JPEG
-  let convertedFile = this.formData.GovernmentID;
-  if (this.formData.GovernmentID && this.formData.GovernmentID.type !== 'image/jpeg') {
-    try {
-      convertedFile = await this.convertToJpeg(this.formData.GovernmentID);
-    } catch (error) {
-      this.errors.push('Error converting image to JPEG');
-      this.$nextTick(() => this.scrollToFirstError());
-      return;
-    }
-  }
+      // Convert the uploaded image to JPEG (now always handled in handleFileUpload/convertSafely)
+      const convertedFile = this.formData.GovernmentID;
+      if (!convertedFile) {
+        this.errors.push('Please upload a valid government ID');
+        this.$nextTick(() => this.scrollToFirstError());
+        return;
+      }
 
-  // Prepare form data
-  const formData = new FormData();
-  for (const key in this.formData) {
-    if (key === 'GovernmentID') {
-      formData.append(key, convertedFile);
-    } else {
-      formData.append(key, this.formData[key] || '');
-    }
-    console.log(`Appending form field: ${key}`, this.formData[key]);
-  }
-  console.log('Form data being sent:', Object.fromEntries(formData));
+      // Prepare form data (append text first, file last)
+      const formData = new FormData();
+      Object.keys(this.formData).forEach(key => {
+        if (key !== 'GovernmentID') {
+          formData.append(key, this.formData[key] || '');
+        }
+      });
+      formData.append('GovernmentID', convertedFile);
 
-  try {
-    const response = await axios.post('/users', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+      // Polyfill for Safari/WebKit (including iOS Chrome): Re-append if empty
+      const isWebKit = /AppleWebKit/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent) && /Safari/.test(navigator.userAgent);
+      if (isWebKit) {
+        let fileEntry = formData.get('GovernmentID');
+        if (!fileEntry || fileEntry.size === 0) {
+          console.warn('Safari polyfill: Re-appending file');
+          formData.delete('GovernmentID');
+          formData.append('GovernmentID', convertedFile);
+        }
+      }
 
-    console.log('Signup response:', response.data);
-    
-    await Swal.fire({
-      icon: 'success',
-      title: 'Account has been created',
-      showConfirmButton: false,
-      timer: 2000
-    });
+      try {
+        console.log('Sending FormData with file size:', convertedFile.size);  // Debug
+        const response = await axios.post('/users', formData, {
+          timeout: 30000,  // 30s for slow mobile uploads
+          onUploadProgress: (progressEvent) => {
+            const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            console.log(`Upload progress: ${percent}%`);  // Optional: Add UI progress bar
+          }
+        });
 
-    const redirectUrl = response.data.redirectUrl || '/';
-    window.location.href = redirectUrl;
-    this.errors = [];
-  } catch (error) {
-    console.error('Submission error:', error);
-    if (error.response && error.response.status === 422) {
-      this.errors = Object.values(error.response.data.errors).flat();
-      this.$nextTick(() => this.scrollToFirstError());
-    } else {
-      this.errors = ['An unexpected error occurred. Please try again later.'];
-      this.$nextTick(() => this.scrollToFirstError());
-    }
-  }
-},
+        console.log('Signup response:', response.data);
+        
+        await Swal.fire({
+          icon: 'success',
+          title: 'Account has been created',
+          showConfirmButton: false,
+          timer: 2000
+        });
+
+        const redirectUrl = response.data.redirectUrl || '/';
+        window.location.href = redirectUrl;
+        this.errors = [];
+      } catch (error) {
+        console.error('Full upload error:', error);
+        console.error('Response data:', error.response?.data);
+        if (error.code === 'ECONNABORTED') {
+          this.errors.push('Upload timeout—retrying...');
+          // Optional retry: await this.submitForm(); (add counter to avoid loops)
+        } else if (error.response?.status === 422) {
+          this.errors = Object.values(error.response.data.errors).flat();
+        } else {
+          this.errors = ['An unexpected error occurred. Please try again.'];
+        }
+        this.$nextTick(() => this.scrollToFirstError());
+      }
+    },
     validateBirthDate() {
       const birthdate = new Date(this.formData.BirthDate);
       const today = new Date();
