@@ -510,7 +510,7 @@
         </div>
 
         <div class="submit-button">
-          <button type="submit">SIGN UP</button>
+          <button type="submit" :disabled="isSubmitting">{{ isSubmitting ? 'Processing...' : 'SIGN UP' }}</button>
         </div>
         
         <div class="login-link">
@@ -565,6 +565,7 @@ export default {
       maxDate: '',
       showPassword: false,
       showConfirmPassword: false,
+      isSubmitting: false,
     };
   },
   methods: {
@@ -718,6 +719,7 @@ export default {
       }
     },
     async submitForm() {
+      this.isSubmitting = true;
       this.formSubmitted = true;
       this.errors = [];
 
@@ -767,6 +769,7 @@ export default {
 
       if (!form.checkValidity() || this.errors.length) {
         console.log('Form errors:', this.errors);
+        this.isSubmitting = false;
         this.$nextTick(() => this.scrollToFirstError());
         return;
       }
@@ -775,6 +778,7 @@ export default {
       const convertedFile = this.formData.GovernmentID;
       if (!convertedFile) {
         this.errors.push('Please upload a valid government ID');
+        this.isSubmitting = false;
         this.$nextTick(() => this.scrollToFirstError());
         return;
       }
@@ -832,6 +836,7 @@ export default {
         } else {
           this.errors = ['An unexpected error occurred. Please try again.'];
         }
+        this.isSubmitting = false;
         this.$nextTick(() => this.scrollToFirstError());
       }
     },
