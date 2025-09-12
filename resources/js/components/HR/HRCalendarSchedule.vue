@@ -669,12 +669,12 @@
                 <h4>Selected Services</h4>
                 <div v-for="serviceId in newAppointment.services" :key="serviceId" class="selected-service">
                   <span>{{ getServiceName(serviceId) }}</span>
-                  <span>₱{{ getServiceCost(serviceId) }}</span>
+                  <!-- <span>₱{{ getServiceCost(serviceId) }}</span> -->
                 </div>
-                <div class="total-cost">
+                <!-- <div class="total-cost">
                   <span>Total</span>
                   <span>₱{{ calculateTotalCost() }}</span>
-                </div>
+                </div> -->
               </div>
               <br>
               <div class="form-group">
