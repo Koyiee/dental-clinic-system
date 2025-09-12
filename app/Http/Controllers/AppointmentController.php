@@ -659,165 +659,186 @@ class AppointmentController extends Controller
         
         // Billing logic (unchanged)
         if (!$requiresConfirmation && strtolower($oldStatus) !== 'completed' && 
-            strtolower($appointment->AppointmentStatus) === 'completed') {
-            try {
-                $billing = Billing::where('AppointmentID', $appointment->AppointmentID)->first();
-                $servicesAvailed = $appointment->servicesAvailed;
-                
-                if ($servicesAvailed->isEmpty()) {
-                    Log::warning("No services availed for AppointmentID: $id");
-                    return response()->json(['message' => 'No services found for billing creation'], 400);
-                }
-                
-                $totalCost = 0;
-                $latestPaymentMethodId = null;
-                
-                Log::info("Processing services for billing", [
-                    'servicesAvailed' => $servicesAvailed->map(function ($sa) {
-                        return ['ServiceAvailedID' => $sa->ServiceAvailedID, 'Status' => $sa->Status, 'Cost' => $sa->service->Cost];
-                    })->toArray(),
-                ]);
-                
-                foreach ($servicesAvailed as $sa) {
-                    $service = $sa->service;
-                    if ($sa->Status === 'Completed') {
-                        if ($service->IsMultiVisit) {
-                            $treatmentProgress = $sa->TreatmentProgressID 
-                                ? TreatmentProgress::find($sa->TreatmentProgressID)
-                                : TreatmentProgress::where('PatientID', $appointment->PatientID)
-                                    ->where('TreatmentName', $service->ServiceName)
-                                    ->orderBy('created_at', 'desc')
-                                    ->first();
-                
-                            if (!$treatmentProgress) {
-                                $treatmentProgress = TreatmentProgress::create([
-                                    'PatientID' => $appointment->PatientID,
-                                    'TreatmentName' => $service->ServiceName,
-                                    'StartDate' => $appointment->AppointmentDate,
-                                    'VisitCount' => 1,
-                                    'EndDate' => null,
-                                    'Status' => 'In Progress',
-                                ]);
-                                $totalCost += $service->Cost;
-                                Log::info("Created new TreatmentProgress for first visit", [
-                                    'TreatmentProgressID' => $treatmentProgress->TreatmentProgressID,
-                                    'PatientID' => $appointment->PatientID,
-                                    'ServiceName' => $service->ServiceName,
-                                    'InitialCost' => $service->Cost,
-                                ]);
-                            } else {
-                                $treatmentProgress->VisitCount = $treatmentProgress->VisitCount + 1;
-                                if ($treatmentProgress->Status !== 'Completed') {
-                                    $treatmentProgress->Status = 'In Progress';
-                                }
-                                $treatmentProgress->save();
-                                Log::info("Updated TreatmentProgress for subsequent visit", [
-                                    'TreatmentProgressID' => $treatmentProgress->TreatmentProgressID,
-                                    'VisitCount' => $treatmentProgress->VisitCount,
-                                    'Status' => $treatmentProgress->Status,
-                                ]);
-                
-                                $priorBilling = Billing::whereHas('appointment.servicesAvailed', function ($query) use ($treatmentProgress) {
-                                    $query->where('TreatmentProgressID', $treatmentProgress->TreatmentProgressID);
-                                })->orderBy('created_at', 'desc')->first();
-                
-                                if ($priorBilling) {
-                                    $totalCost += $priorBilling->Balance;
-                                    Log::info("Using prior billing balance for multi-visit service", [
-                                        'TreatmentProgressID' => $treatmentProgress->TreatmentProgressID,
-                                        'PriorBillingID' => $priorBilling->BillingID,
-                                        'BalanceUsed' => $priorBilling->Balance,
-                                        'BillingStatus' => $priorBilling->BillingStatus,
-                                    ]);
-            
-                                    if ($totalCost == 0) {
-                                        $latestPayment = Payment::whereHas('billing.appointment.servicesAvailed', function ($query) use ($treatmentProgress) {
-                                            $query->where('TreatmentProgressID', $treatmentProgress->TreatmentProgressID);
-                                        })->orderBy('PaymentDate', 'desc')->first();
-                                        if ($latestPayment) {
-                                            $latestPaymentMethodId = $latestPayment->PaymentMethodID;
-                                            Log::info("Fetched latest payment method for fully paid multi-visit", [
-                                                'TreatmentProgressID' => $treatmentProgress->TreatmentProgressID,
-                                                'PaymentMethodID' => $latestPaymentMethodId,
-                                            ]);
-                                        }
-                                    }
-                                } else {
-                                    $totalCost += $service->Cost;
-                                    Log::info("Added multi-visit service cost", [
-                                        'ServiceAvailedID' => $sa->ServiceAvailedID,
-                                        'Cost' => $service->Cost,
-                                        'TotalCost' => $totalCost,
-                                    ]);
-                                }
-                            }
-                
-                            $sa->TreatmentProgressID = $treatmentProgress->TreatmentProgressID;
-                            $sa->save();
+    strtolower($appointment->AppointmentStatus) === 'completed') {
+    try {
+        $billing = Billing::where('AppointmentID', $appointment->AppointmentID)->first();
+        $servicesAvailed = $appointment->servicesAvailed;
+
+        if ($servicesAvailed->isEmpty()) {
+            Log::warning("No services availed for AppointmentID: $id");
+            return response()->json(['message' => 'No services found for billing creation'], 400);
+        }
+
+        $totalCost = 0;
+        $hasNullPrice = false;
+
+        Log::info("Processing services for billing", [
+            'servicesAvailed' => $servicesAvailed->map(function ($sa) {
+                return [
+                    'ServiceAvailedID' => $sa->ServiceAvailedID,
+                    'Status' => $sa->Status,
+                    'Cost' => $sa->service->Cost,
+                    'UpdatedPrice' => $sa->UpdatedPrice
+                ];
+            })->toArray(),
+        ]);
+
+        foreach ($servicesAvailed as $sa) {
+            $service = $sa->service;
+            if ($sa->Status === 'Completed') {
+                if ($service->IsMultiVisit) {
+                    $treatmentProgress = $sa->TreatmentProgressID 
+                        ? TreatmentProgress::find($sa->TreatmentProgressID)
+                        : TreatmentProgress::where('PatientID', $appointment->PatientID)
+                            ->where('TreatmentName', $service->ServiceName)
+                            ->orderBy('created_at', 'desc')
+                            ->first();
+
+                    if (!$treatmentProgress) {
+                        $treatmentProgress = TreatmentProgress::create([
+                            'PatientID' => $appointment->PatientID,
+                            'TreatmentName' => $service->ServiceName,
+                            'StartDate' => $appointment->AppointmentDate,
+                            'VisitCount' => 1,
+                            'EndDate' => null,
+                            'Status' => 'In Progress',
+                        ]);
+                        // Use UpdatedPrice if available, else service Cost, or mark as null price
+                        $serviceCost = $sa->UpdatedPrice !== null ? floatval($sa->UpdatedPrice) : ($service->Cost ?: null);
+                        if ($serviceCost === null) {
+                            $hasNullPrice = true;
                         } else {
-                            $totalCost += $service->Cost;
-                            Log::info("Added single-visit service cost", [
+                            $totalCost += $serviceCost;
+                        }
+                        Log::info("Created new TreatmentProgress for first visit", [
+                            'TreatmentProgressID' => $treatmentProgress->TreatmentProgressID,
+                            'PatientID' => $appointment->PatientID,
+                            'ServiceName' => $service->ServiceName,
+                            'ServiceCost' => $serviceCost,
+                        ]);
+                    } else {
+                        $treatmentProgress->VisitCount = $treatmentProgress->VisitCount + 1;
+                        if ($treatmentProgress->Status !== 'Completed') {
+                            $treatmentProgress->Status = 'In Progress';
+                        }
+                        $treatmentProgress->save();
+                        Log::info("Updated TreatmentProgress for subsequent visit", [
+                            'TreatmentProgressID' => $treatmentProgress->TreatmentProgressID,
+                            'VisitCount' => $treatmentProgress->VisitCount,
+                            'Status' => $treatmentProgress->Status,
+                        ]);
+
+                        $priorBilling = Billing::whereHas('appointment.servicesAvailed', function ($query) use ($treatmentProgress) {
+                            $query->where('TreatmentProgressID', $treatmentProgress->TreatmentProgressID);
+                        })->orderBy('created_at', 'desc')->first();
+
+                        if ($priorBilling) {
+                            // Use prior billing balance if available
+                            if ($priorBilling->Balance !== null) {
+                                $totalCost += $priorBilling->Balance;
+                            } else {
+                                $hasNullPrice = true;
+                            }
+                            Log::info("Using prior billing balance for multi-visit service", [
+                                'TreatmentProgressID' => $treatmentProgress->TreatmentProgressID,
+                                'PriorBillingID' => $priorBilling->BillingID,
+                                'BalanceUsed' => $priorBilling->Balance,
+                                'BillingStatus' => $priorBilling->BillingStatus,
+                            ]);
+                        } else {
+                            // Use UpdatedPrice if available, else service Cost, or mark as null price
+                            $serviceCost = $sa->UpdatedPrice !== null ? floatval($sa->UpdatedPrice) : ($service->Cost ?: null);
+                            if ($serviceCost === null) {
+                                $hasNullPrice = true;
+                            } else {
+                                $totalCost += $serviceCost;
+                            }
+                            Log::info("Added multi-visit service cost", [
                                 'ServiceAvailedID' => $sa->ServiceAvailedID,
-                                'Cost' => $service->Cost,
+                                'Cost' => $serviceCost,
                                 'TotalCost' => $totalCost,
                             ]);
                         }
-                    } else {
-                        Log::info("Skipping billing for service due to non-Completed status", [
-                            'ServiceAvailedID' => $sa->ServiceAvailedID,
-                            'Status' => $sa->Status,
-                        ]);
                     }
-                }
-                
-                if ($totalCost > 0) {
-                    $finalTotalAmount = isset($validated['total_amount']) ? (float) $validated['total_amount'] : $totalCost;
-                    $discount = isset($validated['discount']) ? (float) $validated['discount'] : 0.00;
-                
-                    if (!$billing) {
-                        $billing = Billing::create([
-                            'AppointmentID' => $appointment->AppointmentID,
-                            'TotalAmount' => $finalTotalAmount,
-                            'Balance' => max(0, $finalTotalAmount - $discount),
-                            'Discount' => $discount,
-                            'BillingStatus' => $finalTotalAmount <= $discount ? 'Paid' : 'Unpaid',
-                        ]);
-                        Log::info("Created new billing", [
-                            'BillingID' => $billing->BillingID,
-                            'TotalAmount' => $billing->TotalAmount,
-                            'Balance' => $billing->Balance,
-                            'Discount' => $billing->Discount,
-                            'BillingStatus' => $billing->BillingStatus,
-                        ]);
-                    } else {
-                        if (isset($validated['total_amount']) || isset($validated['discount'])) {
-                            $totalPayments = $billing->payments->sum('AmountPaid');
-                            $billing->TotalAmount = $finalTotalAmount;
-                            $billing->Discount = $discount;
-                            $billing->Balance = max(0, $billing->TotalAmount - $billing->Discount - $totalPayments);
-                            $billing->BillingStatus = $billing->Balance <= 0 ? 'Paid' : ($totalPayments > 0 ? 'Partially Paid' : 'Unpaid');
-                            $billing->save();
-                            Log::info("Updated existing billing with provided values", [
-                                'BillingID' => $billing->BillingID,
-                                'TotalAmount' => $billing->TotalAmount,
-                                'Balance' => $billing->Balance,
-                                'Discount' => $billing->Discount,
-                                'BillingStatus' => $billing->BillingStatus,
-                            ]);
-                        }
-                    }
+
+                    $sa->TreatmentProgressID = $treatmentProgress->TreatmentProgressID;
+                    $sa->save();
                 } else {
-                    Log::info("No billing generated: Total cost is 0", [
-                        'AppointmentID' => $appointment->AppointmentID,
-                        'Status' => $appointment->AppointmentStatus,
+                    // Single-visit service: Use UpdatedPrice if available, else service Cost
+                    $serviceCost = $sa->UpdatedPrice !== null ? floatval($sa->UpdatedPrice) : ($service->Cost ?: null);
+                    if ($serviceCost === null) {
+                        $hasNullPrice = true;
+                    } else {
+                        $totalCost += $serviceCost;
+                    }
+                    Log::info("Added single-visit service cost", [
+                        'ServiceAvailedID' => $sa->ServiceAvailedID,
+                        'Cost' => $serviceCost,
                         'TotalCost' => $totalCost,
                     ]);
                 }
-                
-            } catch (\Exception $e) {
-                Log::error("Error in billing creation: " . $e->getMessage(), ['stack' => $e->getTraceAsString()]);
+            } else {
+                Log::info("Skipping billing for service due to non-Completed status", [
+                    'ServiceAvailedID' => $sa->ServiceAvailedID,
+                    'Status' => $sa->Status,
+                ]);
             }
         }
+
+        // Always create/update billing if services exist
+        if ($servicesAvailed->isNotEmpty()) {
+            $finalTotalAmount = isset($validated['total_amount']) && $validated['total_amount'] !== null 
+                ? (float) $validated['total_amount'] 
+                : ($hasNullPrice ? null : $totalCost);
+            $discount = isset($validated['discount']) && $validated['discount'] !== null 
+                ? (float) $validated['discount'] 
+                : 0.00;
+
+            if (!$billing) {
+                $billing = Billing::create([
+                    'AppointmentID' => $appointment->AppointmentID,
+                    'TotalAmount' => $finalTotalAmount,
+                    'Balance' => $finalTotalAmount !== null ? max(0, $finalTotalAmount - $discount) : null,
+                    'Discount' => $discount,
+                    'BillingStatus' => $finalTotalAmount === null || $finalTotalAmount <= 0 ? 'Unpaid' : 'Unpaid',
+                ]);
+                Log::info("Created new billing", [
+                    'BillingID' => $billing->BillingID,
+                    'TotalAmount' => $billing->TotalAmount,
+                    'Balance' => $billing->Balance,
+                    'Discount' => $billing->Discount,
+                    'BillingStatus' => $billing->BillingStatus,
+                ]);
+            } else {
+                if (isset($validated['total_amount']) || isset($validated['discount'])) {
+                    $totalPayments = $billing->payments->sum('AmountPaid');
+                    $billing->TotalAmount = $finalTotalAmount;
+                    $billing->Discount = $discount;
+                    $billing->Balance = $finalTotalAmount !== null ? max(0, $finalTotalAmount - $discount - $totalPayments) : null;
+                    $billing->BillingStatus = $finalTotalAmount === null ? 'Unpaid' : ($billing->Balance <= 0 ? 'Paid' : ($totalPayments > 0 ? 'Partially Paid' : 'Unpaid'));
+                    $billing->save();
+                    Log::info("Updated existing billing with provided values", [
+                        'BillingID' => $billing->BillingID,
+                        'TotalAmount' => $billing->TotalAmount,
+                        'Balance' => $billing->Balance,
+                        'Discount' => $billing->Discount,
+                        'BillingStatus' => $billing->BillingStatus,
+                    ]);
+                }
+            }
+        } else {
+            Log::info("No billing generated: No completed services", [
+                'AppointmentID' => $appointment->AppointmentID,
+                'Status' => $appointment->AppointmentStatus,
+                'TotalCost' => $totalCost,
+            ]);
+        }
+
+    } catch (\Exception $e) {
+        Log::error("Error in billing creation: " . $e->getMessage(), ['stack' => $e->getTraceAsString()]);
+        return response()->json(['message' => 'Error creating billing: ' . $e->getMessage()], 500);
+    }
+}
         
         $dentist = Dentist::with('user')->find($appointment->DentistID);
         $responseServices = (strtolower($appointment->AppointmentStatus) === 'completed')
