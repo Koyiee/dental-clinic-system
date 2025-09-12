@@ -1428,7 +1428,6 @@ if (abs($newCost - $originalCost) > 0.01) {
     {
         Log::info("Fetching ledger for PatientID: $patientId");
 
-        // If no patientId is provided, use the authenticated patient's ID
         if (!$patientId) {
             $user = Auth::user();
             if (!$user) {
@@ -1447,7 +1446,6 @@ if (abs($newCost - $originalCost) > 0.01) {
         }
 
         try {
-            // Fetch all completed appointments for the patient
             $appointments = Appointment::where('PatientID', $patientId)
                 ->where('AppointmentStatus', 'Completed')
                 ->with([
@@ -1457,12 +1455,10 @@ if (abs($newCost - $originalCost) > 0.01) {
                 ])
                 ->get();
 
-            // Fetch all treatment progress records for the patient to track multi-visit treatments
             $treatmentProgresses = TreatmentProgress::where('PatientID', $patientId)
                 ->get()
                 ->keyBy('TreatmentProgressID');
 
-            // Fetch standalone payments (BillingID is null) for the patient
             $standalonePayments = Payment::where('PatientID', $patientId)
                 ->whereNull('BillingID')
                 ->with('paymentMethod')
@@ -1470,9 +1466,9 @@ if (abs($newCost - $originalCost) > 0.01) {
 
             $ledgerEntries = [];
             $runningBalance = 0;
-            $processedTreatments = []; // Track which multi-visit treatments have been debited
+            $processedTreatments = []; // Track processed multi-visit treatments
+            $treatmentBalances = []; // Track remaining balance per TreatmentProgressID
 
-            // Process each completed appointment
             foreach ($appointments as $appointment) {
                 $baseTransactionDate = $appointment->updated_at
                     ? $appointment->updated_at->toDateTimeString()
@@ -1493,49 +1489,73 @@ if (abs($newCost - $originalCost) > 0.01) {
                         continue;
                     }
 
-                    if ($serviceAvailed->service->IsMultiVisit) {
-                        if (!$serviceAvailed->treatmentProgress) {
-                            continue;
-                        }
+                    $serviceCost = $serviceAvailed->UpdatedPrice ?? $serviceAvailed->service->Cost;
+                    $serviceCost = floatval($serviceCost);
+
+                    if ($serviceAvailed->service->IsMultiVisit && $serviceAvailed->treatmentProgress) {
                         $treatmentProgress = $serviceAvailed->treatmentProgress;
                         $treatmentProgressId = $treatmentProgress->TreatmentProgressID;
 
-                        // Only record debit when a payment is associated with this service
-                        $paymentExists = $appointment->billing && $appointment->billing->payments->isNotEmpty();
-                        $debitAmount = $paymentExists ? ($serviceAvailed->UpdatedPrice ?? $serviceAvailed->service->Cost) : 0;
+                        // Initialize balance for this treatment if not set
+                        if (!isset($treatmentBalances[$treatmentProgressId])) {
+                            $treatmentBalances[$treatmentProgressId] = 0;
+                        }
 
-                        if (!isset($processedTreatments[$treatmentProgressId]) || $treatmentProgress->VisitCount == 1) {
+                        // Calculate prior balance and check for price change
+                        $priorBalance = $treatmentBalances[$treatmentProgressId];
+                        $priceDifference = $serviceCost - $priorBalance;
+
+                        // Only add a debit entry if it's the first visit or if the price has changed
+                        if (!isset($processedTreatments[$treatmentProgressId]) || abs($priceDifference) > 0.01) {
+                            $debitAmount = isset($processedTreatments[$treatmentProgressId]) ? $priceDifference : $serviceCost;
+
                             $ledgerEntries[] = [
                                 'Service' => $serviceAvailed->service->ServiceName . ' (Visit ' . $treatmentProgress->VisitCount . ')',
                                 'PaymentMethod' => null,
                                 'TransactionDate' => $baseTransactionDate,
                                 'Reference' => 'Appointment #' . $appointment->AppointmentID . ' (Treatment #' . $treatmentProgressId . ')',
-                                'Debit' => floatval($debitAmount),
+                                'Debit' => $debitAmount,
                                 'Credit' => 0,
-                                'Balance' => $runningBalance += floatval($debitAmount),
+                                'Balance' => $runningBalance += $debitAmount,
                                 'IsStandalonePayment' => false,
                                 'TreatmentProgressID' => $treatmentProgressId,
                                 'Remarks' => $appointment->billing ? ($appointment->billing->Remarks ?? '') : '',
                             ];
+
+                            // Update the treatment balance to the new service cost
+                            $treatmentBalances[$treatmentProgressId] = $serviceCost;
+
+                            Log::info("Added debit entry for multi-visit service", [
+                                'TreatmentProgressID' => $treatmentProgressId,
+                                'ServiceName' => $serviceAvailed->service->ServiceName,
+                                'VisitCount' => $treatmentProgress->VisitCount,
+                                'Debit' => $debitAmount,
+                                'PriorBalance' => $priorBalance,
+                                'NewBalance' => $serviceCost,
+                            ]);
+
+                            $processedTreatments[$treatmentProgressId] = [
+                                'ServiceID' => $serviceAvailed->service->ServiceID,
+                                'Status' => $treatmentProgress->Status,
+                            ];
+                        } else {
+                            Log::info("Skipped debit entry for multi-visit service; no price change", [
+                                'TreatmentProgressID' => $treatmentProgressId,
+                                'ServiceName' => $serviceAvailed->service->ServiceName,
+                                'VisitCount' => $treatmentProgress->VisitCount,
+                                'CurrentCost' => $serviceCost,
+                                'PriorBalance' => $priorBalance,
+                            ]);
                         }
-
-                        $processedTreatments[$treatmentProgressId] = [
-                            'ServiceID' => $serviceAvailed->service->ServiceID,
-                            'Status' => $treatmentProgress->Status,
-                        ];
                     } else {
-                        // Only record debit when a payment is associated with this service
-                        $paymentExists = $appointment->billing && $appointment->billing->payments->isNotEmpty();
-                        $debitAmount = $paymentExists ? ($serviceAvailed->UpdatedPrice ?? $serviceAvailed->service->Cost) : 0;
-
                         $ledgerEntries[] = [
                             'Service' => $serviceAvailed->service->ServiceName,
                             'PaymentMethod' => null,
                             'TransactionDate' => $baseTransactionDate,
                             'Reference' => 'Appointment #' . $appointment->AppointmentID,
-                            'Debit' => floatval($debitAmount),
+                            'Debit' => $serviceCost,
                             'Credit' => 0,
-                            'Balance' => $runningBalance += floatval($debitAmount),
+                            'Balance' => $runningBalance += $serviceCost,
                             'IsStandalonePayment' => false,
                             'Remarks' => $appointment->billing ? ($appointment->billing->Remarks ?? '') : '',
                         ];
@@ -1567,7 +1587,6 @@ if (abs($newCost - $originalCost) > 0.01) {
                         ];
                     }
 
-                    // Handle payments (only record credit when actual payment exists)
                     if ($billing->payments && $billing->payments->isNotEmpty()) {
                         foreach ($billing->payments as $payment) {
                             $paymentDate = $payment->PaymentDate
@@ -1593,6 +1612,22 @@ if (abs($newCost - $originalCost) > 0.01) {
                                 'IsStandalonePayment' => false,
                                 'Remarks' => $billing->Remarks ?? '',
                             ];
+
+                            // Update treatment balance for multi-visit services
+                            foreach ($servicesAvailed as $sa) {
+                                if ($sa->service->IsMultiVisit && $sa->treatmentProgress) {
+                                    $treatmentProgressId = $sa->treatmentProgress->TreatmentProgressID;
+                                    if (isset($treatmentBalances[$treatmentProgressId])) {
+                                        $treatmentBalances[$treatmentProgressId] -= $netAmountPaid;
+                                        Log::info("Updated treatment balance after payment", [
+                                            'TreatmentProgressID' => $treatmentProgressId,
+                                            'PaymentID' => $payment->PaymentID,
+                                            'NetAmountPaid' => $netAmountPaid,
+                                            'NewTreatmentBalance' => $treatmentBalances[$treatmentProgressId],
+                                        ]);
+                                    }
+                                }
+                            }
 
                             Log::info("Added billing payment to ledger", [
                                 'PaymentID' => $payment->PaymentID,
@@ -1626,6 +1661,20 @@ if (abs($newCost - $originalCost) > 0.01) {
                     'IsStandalonePayment' => true,
                     'Remarks' => $payment->Notes ?? '',
                 ];
+
+                // Apply standalone payment to multi-visit treatment balances
+                foreach ($treatmentProgresses as $tp) {
+                    if (isset($treatmentBalances[$tp->TreatmentProgressID]) && $treatmentBalances[$tp->TreatmentProgressID] > 0) {
+                        $treatmentBalances[$tp->TreatmentProgressID] -= $netAmountPaid;
+                        Log::info("Applied standalone payment to treatment balance", [
+                            'TreatmentProgressID' => $tp->TreatmentProgressID,
+                            'PaymentID' => $payment->PaymentID,
+                            'NetAmountPaid' => $netAmountPaid,
+                            'NewTreatmentBalance' => $treatmentBalances[$tp->TreatmentProgressID],
+                        ]);
+                        break; // Apply to the first unpaid multi-visit treatment
+                    }
+                }
             }
 
             foreach ($appointments as $appointment) {
@@ -1658,25 +1707,32 @@ if (abs($newCost - $originalCost) > 0.01) {
                         $baseTransactionDate = $appointment->updated_at
                             ? $appointment->updated_at->toDateTimeString()
                             : now()->toDateTimeString();
-                        $paymentExists = $appointment->billing && $appointment->billing->payments->isNotEmpty();
-                        $debitAmount = $paymentExists ? ($serviceAvailed->UpdatedPrice ?? $serviceAvailed->service->Cost) : 0;
+                        $serviceCost = $serviceAvailed->UpdatedPrice ?? $service->Cost;
+                        $serviceCost = floatval($serviceCost);
 
-                        $ledgerEntries[] = [
-                            'Service' => $service->ServiceName,
-                            'PaymentMethod' => null,
-                            'TransactionDate' => $baseTransactionDate,
-                            'Reference' => 'Appointment #' . $appointment->AppointmentID,
-                            'Debit' => floatval($debitAmount),
-                            'Credit' => 0,
-                            'Balance' => $runningBalance += floatval($debitAmount),
-                            'IsStandalonePayment' => false,
-                            'Remarks' => $appointment->billing ? ($appointment->billing->Remarks ?? '') : '',
-                        ];
+                        $priorBalance = $treatmentBalances[$treatmentProgressId] ?? 0;
+                        $priceDifference = $serviceCost - $priorBalance;
 
-                        $processedTreatments[$treatmentProgressId] = [
-                            'ServiceID' => $service->ServiceID,
-                            'Status' => $treatmentProgress->Status,
-                        ];
+                        if (abs($priceDifference) > 0.01) {
+                            $ledgerEntries[] = [
+                                'Service' => $service->ServiceName . ' (Visit ' . $treatmentProgress->VisitCount . ')',
+                                'PaymentMethod' => null,
+                                'TransactionDate' => $baseTransactionDate,
+                                'Reference' => 'Appointment #' . $appointment->AppointmentID . ' (Treatment #' . $treatmentProgressId . ')',
+                                'Debit' => $priceDifference,
+                                'Credit' => 0,
+                                'Balance' => $runningBalance += $priceDifference,
+                                'IsStandalonePayment' => false,
+                                'Remarks' => $appointment->billing ? ($appointment->billing->Remarks ?? '') : '',
+                            ];
+
+                            $treatmentBalances[$treatmentProgressId] = $serviceCost;
+
+                            $processedTreatments[$treatmentProgressId] = [
+                                'ServiceID' => $service->ServiceID,
+                                'Status' => $treatmentProgress->Status,
+                            ];
+                        }
                     }
                 }
             }
