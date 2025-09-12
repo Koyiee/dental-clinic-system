@@ -1694,75 +1694,61 @@ export default defineComponent({
       window.location.href = '/patientappointments';
     },
     async finalizeBooking() {
-      try {
-        //console.log("Sending appointment data:", this.form);
-        if (this.form.DentistID === "any") {
-          this.form.DentistID = null;
-        } else {
-          const availabilityResponse = await axios.get(`/dentist-availability/${this.form.AppointmentDate}`, {
-            withCredentials: true,
-          });
-          const unavailableDentistIDs = availabilityResponse.data.unavailable_dentists;
-          const selectedDentist = this.dentists.find(d => d.DentistID === this.form.DentistID);
-          if (unavailableDentistIDs.includes(parseInt(this.form.DentistID))) {
-            this.openInfoModal(`${selectedDentist.Name} is unavailable on ${this.form.AppointmentDate}. Please select another dentist.`);
-            this.isConfirmModalOpen = false;
-            this.currentStep = 3;
-            return;
-          }
-          const durationCheck = await axios.get('/check-dentist-availability', {
-            params: {
-              dentist_id: this.form.DentistID,
-              date: this.form.AppointmentDate,
-              time: this.form.AppointmentTime,
-              service_count: this.selectedServices.length,
-            },
-            withCredentials: true,
-          });
-          if (!durationCheck.data.is_available) {
-            this.openInfoModal(`${selectedDentist.Name} is unavailable for the selected time and duration.`);
-            this.isConfirmModalOpen = false;
-            this.currentStep = 3;
-            return;
-          }
+    try {
+        // Normalize AppointmentTime to H:i format
+        let normalizedTime = this.form.AppointmentTime;
+        if (normalizedTime) {
+            // If time is in 12-hour format (e.g., "9:00 AM"), convert to 24-hour
+            if (normalizedTime.includes(' ')) {
+                const [time, period] = normalizedTime.split(' ');
+                let [hours, minutes] = time.split(':');
+                hours = parseInt(hours);
+                if (period.toUpperCase() === 'PM' && hours !== 12) {
+                    hours += 12;
+                } else if (period.toUpperCase() === 'AM' && hours === 12) {
+                    hours = 0;
+                }
+                normalizedTime = `${hours.toString().padStart(2, '0')}:${minutes}`;
+            } else {
+                // Ensure time is in H:i format (e.g., pad single-digit hours)
+                const [hours, minutes] = normalizedTime.split(':');
+                normalizedTime = `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`;
+            }
         }
+
         const appointmentData = {
-          AppointmentDate: this.form.AppointmentDate,
-          AppointmentTime: this.form.AppointmentTime,
-          services: this.selectedServices,
-          DentistID: this.form.DentistID,
-          PatientID: this.form.PatientID,
-          PatientNote: this.form.PatientNote,
+            AppointmentDate: this.form.AppointmentDate,
+            AppointmentTime: normalizedTime,
+            services: this.selectedServices,
+            DentistID: this.form.DentistID === 'any' ? null : this.form.DentistID,
+            PatientID: this.form.PatientID,
+            PatientNote: this.form.PatientNote,
         };
+
+        console.log('Sending appointment data:', appointmentData);
+
         const response = await axios.post('/patientappointments', appointmentData, {
-          headers: { 'Content-Type': 'application/json' },
-          withCredentials: true,
+            headers: { 'Content-Type': 'application/json' },
+            withCredentials: true,
         });
-        //console.log("Appointment response:", response.data);
+
         if (response.status === 200 || response.status === 201) {
-          this.appointmentId = response.data.appointment?.AppointmentID;
-          //console.log("Extracted AppointmentID:", this.appointmentId);
-          if (!this.appointmentId) {
-            throw new Error("AppointmentID not found in response");
-          }
-          await this.generateAndSavePDF(this.appointmentId);
-          this.successMessage = "Appointment booked successfully! Check your email for confirmation details.";
-          this.isSuccessMessageVisible = true;
-          this.isConfirmModalOpen = false;
-          this.resetForm();
+            this.appointmentId = response.data.appointment?.AppointmentID;
+            if (!this.appointmentId) {
+                throw new Error('AppointmentID not found in response');
+            }
+            await this.generateAndSavePDF(this.appointmentId);
+            this.successMessage = 'Appointment booked successfully! Check your email for confirmation details.';
+            this.isSuccessMessageVisible = true;
+            this.isConfirmModalOpen = false;
+            this.resetForm();
         }
-      } catch (error) {
-        //console.error("Error saving appointment or consent form:", error);
-        const errorMessage = error.response?.data?.message || error.message || "An error occurred while confirming the appointment.";
-        // console.log("Error details:", {
-        //   status: error.response?.status,
-        //   data: error.response?.data,
-        //   message: errorMessage,
-        // });
-        this.openInfoModal(errorMessage);
+    } catch (error) {
+        console.error('Error saving appointment:', error.response?.data || error.message);
+        this.openInfoModal(error.response?.data?.message || 'An error occurred while confirming the appointment.');
         this.isConfirmModalOpen = false;
-      }
-    },
+    }
+},
     async generateAndSavePDF(appointmentId) {
       try {
         const { jsPDF } = window.jspdf;
