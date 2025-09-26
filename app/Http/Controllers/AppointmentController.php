@@ -1611,7 +1611,9 @@ public function getOwnerCalendarAppointments(Request $request)
         \Log::info('HR confirmed appointment creation request data:', $request->all());
     
         $request->validate([
-            'AppointmentDate' => 'required|date|after_or_equal:today',
+            'AppointmentDate' => 'required|date',
+            // UNCOMMENT TO RESTRICT PAST DATES AGAIN
+            // 'AppointmentDate' => 'required|date|after_or_equal:today',
             'AppointmentTime' => 'required',
             'services' => 'required|array|min:1',
             'services.*' => 'integer|exists:services,ServiceID',
