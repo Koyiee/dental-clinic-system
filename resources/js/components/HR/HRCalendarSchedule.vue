@@ -612,13 +612,27 @@
                 </select>
               </div>
               
-              <div class="form-group">
+              <!-- // UNCOMMENT TO RESTRICT PAST DATES AGAIN -->
+              <!-- <div class="form-group">
                 <label>Select Date</label>
                 <input 
                   type="date" 
                   v-model="newAppointment.date" 
                   class="form-input"
                   :min="minDate"
+                >
+                <div v-if="isDateBlocked(newAppointment.date)" class="alert alert-danger">
+                  <i class="bx bx-exclamation-circle"></i>
+                  This date is blocked and cannot be booked.
+                </div>
+              </div> -->
+
+              <div class="form-group">
+                <label>Select Date</label>
+                <input 
+                  type="date" 
+                  v-model="newAppointment.date" 
+                  class="form-input"
                 >
                 <div v-if="isDateBlocked(newAppointment.date)" class="alert alert-danger">
                   <i class="bx bx-exclamation-circle"></i>
@@ -915,11 +929,11 @@ export default {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  console.log("Checking date:", dateStr);
-  console.log("Blocked dates:", this.blockedDates);
+  // console.log("Checking date:", dateStr);
+  // console.log("Blocked dates:", this.blockedDates);
 
   if (this.blockedDates.includes(dateStr)) {
-    console.log("Date is blocked:", dateStr);
+    // console.log("Date is blocked:", dateStr);
     info.el.classList.add('fc-day-blocked');
     this.getBlockReason(dateStr).then(reason => {
       if (reason) {
@@ -1030,10 +1044,11 @@ export default {
     isSaveDisabled() {
       return this.selectedAppointment?.status?.toLowerCase() === 'completed' || !this.isEdited;
     },
-    minDate() {
-  const today = new Date();
-  return today.toISOString().split('T')[0];
-},
+    // UNCOMMENT TO RESTRICT PAST DATES AGAIN
+    // minDate() {
+    //   const today = new Date();
+    //   return today.toISOString().split('T')[0];
+    // },
     canProceedToNextStep() {
       if (this.currentStep === 1) {
         return this.newAppointment.patientId && 
@@ -1901,7 +1916,7 @@ export default {
       return date.toISOString().split('T')[0];
     });
     
-    console.log("Blocked Dates (fixed):", this.blockedDates);
+    // console.log("Blocked Dates (fixed):", this.blockedDates);
     this.calendarKey += 1; // Force re-render of the calendar
     
     this.blockedDates.forEach(dateStr => {
