@@ -32,13 +32,292 @@ class AppointmentController extends Controller
             ->exists();
     }
 
+    // UNCOMMENT TO RESTRICT PAST DATES AGAIN
+    // public function store(Request $request)
+    // {
+    //     try {
+    //         \Log::info('Incoming request data:', $request->all());
+    
+    //         $request->validate([
+    //             'AppointmentDate' => 'required|date|after_or_equal:today',
+    //             'AppointmentTime' => 'required|date_format:H:i',
+    //             'services' => 'required|array|min:1|max:3',
+    //             'services.*' => 'string|exists:services,ServiceName',
+    //             'DentistID' => 'nullable|exists:dentists,DentistID',
+    //             'PatientID' => 'required|exists:patients,PatientID',
+    //             'PatientNote' => 'nullable|string',
+    //         ]);
+    
+    //         $PatientId = auth()->user()->patient ? auth()->user()->patient->PatientID : null;
+    //         if (!$PatientId) {
+    //             return response()->json(['success' => false, 'message' => 'Patient ID not found.'], 400);
+    //         }
+    
+    //         $DentistID = $request->input('DentistID');
+    //         if ($DentistID === 'any') {
+    //             $DentistID = null;
+    //         }
+    
+    //         // Check if the date is blocked
+    //         $appointmentDate = $request->input('AppointmentDate');
+    //         if ($this->isDateBlocked($appointmentDate, $DentistID)) {
+    //             return response()->json([
+    //                 'success' => false,
+    //                 'message' => 'This date is blocked. Please choose another date.',
+    //             ], 400);
+    //         }
+    
+    //         $serviceCount = count($request->input('services'));
+    //         try {
+    //             $startTime = Carbon::createFromFormat('Y-m-d H:i', $request->AppointmentDate . ' ' . $request->AppointmentTime);
+    //         } catch (\Exception $e) {
+    //             \Log::error('Invalid AppointmentTime format: ' . $request->AppointmentTime);
+    //             return response()->json(['success' => false, 'message' => 'Invalid time format. Use HH:MM (e.g., 11:00).'], 400);
+    //         }
+    //         $endTime = $startTime->copy()->addHours($serviceCount);
+    
+    //         // Check slot availability (direct + overlaps)
+    //         $appointments = Appointment::where('AppointmentDate', $request->AppointmentDate)
+    //             ->whereNotIn('AppointmentStatus', ['Declined', 'Cancelled'])
+    //             ->with('servicesAvailed')
+    //             ->get()
+    //             ->map(function ($appointment) {
+    //                 $serviceCount = $appointment->servicesAvailed->count();
+    //                 return [
+    //                     'start' => Carbon::parse($appointment->AppointmentTime),
+    //                     'duration' => $serviceCount,
+    //                 ];
+    //             });
+    
+    //         $affectedTimes = [];
+    //         $currentTime = $startTime->copy();
+    //         while ($currentTime->lessThan($endTime)) {
+    //             $affectedTimes[] = $currentTime->format('H:i');
+    //             $currentTime->addHours(1);
+    //         }
+    
+    //         foreach ($affectedTimes as $time) {
+    //             $directBookings = $appointments->where('start.format', 'H:i', $time)->count();
+    //             $overlaps = $appointments->filter(function ($appt) use ($time) {
+    //                 $apptStart = $appt['start'];
+    //                 $apptEnd = $apptStart->copy()->addHours($appt['duration']);
+    //                 return $apptStart->lessThan(Carbon::parse($time)) && $apptEnd->greaterThan(Carbon::parse($time));
+    //             })->count();
+    //             if ($directBookings + $overlaps >= 5) {
+    //                 return response()->json(['success' => false, 'message' => "Time slot $time is fully booked"], 400);
+    //             }
+    //         }
+    
+    //         // Check dentist availability if specified
+    //         if ($DentistID) {
+    //             $dentist = Dentist::find($DentistID);
+    //             if (!$dentist) {
+    //                 return response()->json(['success' => false, 'message' => 'Dentist not found.'], 400);
+    //             }
+    //             $dayOff = json_decode($dentist->DayOff, true);
+    //             $appointmentDay = date('l', strtotime($request->AppointmentDate));
+    //             if (is_array($dayOff) && in_array($appointmentDay, $dayOff)) {
+    //                 return response()->json(['success' => false, 'message' => 'The selected dentist is unavailable on the chosen date.'], 400);
+    //             }
+    
+    //             \Log::info('Checking dentist availability', [
+    //                 'DentistID' => $DentistID,
+    //                 'AppointmentDate' => $request->AppointmentDate,
+    //                 'StartTime' => $startTime->format('H:i'),
+    //                 'EndTime' => $endTime->format('H:i'),
+    //             ]);
+    
+    //             $conflictingAppointments = Appointment::where('DentistID', $DentistID)
+    //                 ->where('AppointmentDate', $request->AppointmentDate)
+    //                 ->whereNotIn('AppointmentStatus', ['Cancelled', 'Declined'])
+    //                 ->where(function ($query) use ($startTime, $endTime) {
+    //                     $query->whereBetween('AppointmentTime', [$startTime->format('H:i'), $endTime->subMinute()->format('H:i')])
+    //                         ->orWhere(function ($q) use ($startTime, $endTime) {
+    //                             $q->where('AppointmentTime', '<', $endTime->format('H:i'))
+    //                                 ->whereHas('servicesAvailed', function ($subQ) use ($startTime) {
+    //                                     $subQ->select('services_availed.AppointmentID') // Explicitly select only AppointmentID
+    //                                         ->selectRaw('COUNT(*) as service_count, appointments.AppointmentTime')
+    //                                         ->groupBy('services_availed.AppointmentID', 'appointments.AppointmentTime')
+    //                                         ->havingRaw('ADDTIME(appointments.AppointmentTime, CONCAT(service_count, ":00:00")) > ?', [$startTime->format('H:i')]);
+    //                                 });
+    //                         });
+    //                 })
+    //                 ->exists();
+    
+    //             if ($conflictingAppointments) {
+    //                 return response()->json(['success' => false, 'message' => 'Dentist is unavailable for this duration'], 400);
+    //             }
+    //         }
+    
+    //         $appointment = Appointment::create([
+    //             'AppointmentDate' => $request->AppointmentDate,
+    //             'AppointmentTime' => $request->AppointmentTime,
+    //             'DentistID' => $DentistID,
+    //             'PatientID' => $PatientId,
+    //             'AppointmentStatus' => 'Pending',
+    //             'PatientNote' => $request->PatientNote,
+    //         ]);
+    
+    //         // Logging
+    //         $user = auth()->user();
+    //         $dentistName = $appointment->dentist 
+    //             ? "Dr. {$appointment->dentist->user->FirstName} {$appointment->dentist->user->LastName}" 
+    //             : "Any Dentist";
+    //         event(new UserActionOccurred(
+    //             auth()->id(),
+    //             'Appointment Booked',
+    //             "Patient {$user->FirstName} {$user->LastName} booked an appointment on " . 
+    //             date('F j, Y g:i A', strtotime($appointment->AppointmentDate . ' ' . $appointment->AppointmentTime)) . 
+    //             " with {$dentistName}"
+    //         ));
+    
+    //         // Define $serviceNames and ensure it's an array
+    //         $serviceNames = $request->input('services', []);
+    //         \Log::info('Service Names from Request:', ['serviceNames' => $serviceNames]);
+    
+    //         $serviceIDs = Service::whereIn('ServiceName', $serviceNames)
+    //             ->pluck('ServiceID')
+    //             ->toArray();
+    
+    //         \Log::info('Mapped Service IDs:', ['serviceNames' => $serviceNames, 'serviceIDs' => $serviceIDs]);
+    
+    //         if (empty($serviceIDs)) {
+    //             throw new \Exception('No valid ServiceIDs found for services: ' . implode(', ', $serviceNames));
+    //         }
+    
+    //         foreach ($serviceIDs as $serviceID) {
+    //             $service = Service::find($serviceID);
+    //             $serviceAvailed = ServicesAvailed::create([
+    //                 'AppointmentID' => $appointment->AppointmentID,
+    //                 'ServiceID' => $serviceID,
+    //                 'Status' => 'Pending',
+    //             ]);
+    
+    //             \Log::info('Created ServicesAvailed record:', [
+    //                 'ServiceAvailedID' => $serviceAvailed->ServiceAvailedID,
+    //                 'AppointmentID' => $serviceAvailed->AppointmentID,
+    //                 'ServiceID' => $serviceAvailed->ServiceID,
+    //             ]);
+    
+    //             if ($service->IsMultiVisit) {
+    //                 $existingProgress = TreatmentProgress::where('PatientID', $appointment->PatientID)
+    //                     ->where('TreatmentName', $service->ServiceName)
+    //                     ->where('Status', '!=', 'Completed')
+    //                     ->first();
+    
+    //                 if ($existingProgress) {
+    //                     $visitCount = ServicesAvailed::where('TreatmentProgressID', $existingProgress->TreatmentProgressID)
+    //                         ->join('appointments', 'services_availed.AppointmentID', '=', 'appointments.AppointmentID')
+    //                         ->distinct('appointments.AppointmentID')
+    //                         ->count('appointments.AppointmentID');
+    //                     $existingProgress->VisitCount = $visitCount;
+    //                     $existingProgress->save();
+    //                     $serviceAvailed->TreatmentProgressID = $existingProgress->TreatmentProgressID;
+    //                     $serviceAvailed->save();
+    
+    //                     \Log::info("Updated existing TreatmentProgress VisitCount", [
+    //                         'PatientID' => $appointment->PatientID,
+    //                         'TreatmentProgressID' => $existingProgress->TreatmentProgressID,
+    //                         'NewVisitCount' => $visitCount,
+    //                         'StartDate' => $existingProgress->StartDate->toDateString(),
+    //                         'EndDate' => $existingProgress->EndDate ? $existingProgress->EndDate->toDateString() : 'NULL',
+    //                         'ServiceAvailedID' => $serviceAvailed->ServiceAvailedID,
+    //                         'UpdatedTreatmentProgressID' => $serviceAvailed->TreatmentProgressID,
+    //                     ]);
+    //                 } else {
+    //                     $treatmentProgress = TreatmentProgress::create([
+    //                         'PatientID' => $appointment->PatientID,
+    //                         'TreatmentName' => $service->ServiceName,
+    //                         'StartDate' => $appointment->AppointmentDate,
+    //                         'VisitCount' => 1,
+    //                         'EndDate' => null,
+    //                         'Status' => 'In Progress',
+    //                     ]);
+    
+    //                     \Log::info('Created new TreatmentProgress record:', [
+    //                         'TreatmentProgressID' => $treatmentProgress->TreatmentProgressID,
+    //                         'PatientID' => $treatmentProgress->PatientID,
+    //                         'TreatmentName' => $treatmentProgress->TreatmentName,
+    //                     ]);
+    
+    //                     $serviceAvailed->TreatmentProgressID = $treatmentProgress->TreatmentProgressID;
+    //                     $serviceAvailed->save();
+    
+    //                     \Log::info("Updated ServicesAvailed with TreatmentProgressID", [
+    //                         'ServiceAvailedID' => $serviceAvailed->ServiceAvailedID,
+    //                         'TreatmentProgressID' => $serviceAvailed->TreatmentProgressID,
+    //                     ]);
+    //                 }
+    //             }
+    //         }
+    
+    //         // Send booking confirmation email to patient
+    //         try {
+    //             $patientEmail = $appointment->patient->user->Email;
+
+    //             // Render the appointment status updated email manually
+    //             $html = view('emails.appointment_status', [
+    //                 'appointment' => $appointment,
+    //                 'status' => 'Pending',
+    //                 'dentistName' => $dentistName ?? null,
+    //                 'declineReason' => $declineReason ?? null,
+    //             ])->render();
+                
+    //             // Send using BrevoMailService
+    //             $brevo = new BrevoMailService();
+    //             $brevo->sendEmail(
+    //                 $patientEmail,
+    //                 'Booking Confirmation - Appointment Pending',
+    //                 $html
+    //             );
+
+    //             \Log::info("Booking confirmation email sent to patient", [
+    //                 'AppointmentID' => $appointment->AppointmentID,
+    //                 'PatientEmail' => $patientEmail,
+    //             ]);
+    //         } catch (\Exception $e) {
+    //             \Log::error("Failed to send booking confirmation email: " . $e->getMessage(), [
+    //                 'AppointmentID' => $appointment->AppointmentID,
+    //                 'PatientEmail' => $patientEmail ?? 'N/A',
+    //                 'Stack' => $e->getTraceAsString(),
+    //             ]);
+    //         }
+    
+    //         if ($request->expectsJson()) {
+    //             return response()->json(
+    //                 [
+    //                     'success' => true,
+    //                     'message' => 'Appointment booked successfully!',
+    //                     'appointment' => [
+    //                         'AppointmentID' => $appointment->AppointmentID,
+    //                         'AppointmentDate' => $appointment->AppointmentDate,
+    //                         'AppointmentTime' => $appointment->AppointmentTime,
+    //                         'PatientNote' => $appointment->PatientNote,
+    //                         'AppointmentStatus' => $appointment->AppointmentStatus,
+    //                         'DentistID' => $appointment->DentistID,
+    //                         'services' => $serviceNames,
+    //                     ],
+    //                 ],
+    //                 201
+    //             );
+    //         }
+    
+    //         return redirect()->route('patientappointments');
+    //     } catch (\Exception $e) {
+    //         \Log::error('Error booking appointment: ' . $e->getMessage() . ' | Stack: ' . $e->getTraceAsString(), [
+    //             'request_data' => $request->all(),
+    //         ]);
+    //         return response()->json(['success' => false, 'message' => 'An error occurred while booking the appointment. Please try again.'], 500);
+    //     }
+    // }
+
     public function store(Request $request)
     {
         try {
             \Log::info('Incoming request data:', $request->all());
-    
+
             $request->validate([
-                'AppointmentDate' => 'required|date|after_or_equal:today',
+                'AppointmentDate' => 'required|date', // Remove 'after_or_equal:today' to allow past dates
                 'AppointmentTime' => 'required|date_format:H:i',
                 'services' => 'required|array|min:1|max:3',
                 'services.*' => 'string|exists:services,ServiceName',
@@ -46,17 +325,17 @@ class AppointmentController extends Controller
                 'PatientID' => 'required|exists:patients,PatientID',
                 'PatientNote' => 'nullable|string',
             ]);
-    
+
             $PatientId = auth()->user()->patient ? auth()->user()->patient->PatientID : null;
             if (!$PatientId) {
                 return response()->json(['success' => false, 'message' => 'Patient ID not found.'], 400);
             }
-    
+
             $DentistID = $request->input('DentistID');
             if ($DentistID === 'any') {
                 $DentistID = null;
             }
-    
+
             // Check if the date is blocked
             $appointmentDate = $request->input('AppointmentDate');
             if ($this->isDateBlocked($appointmentDate, $DentistID)) {
@@ -65,7 +344,7 @@ class AppointmentController extends Controller
                     'message' => 'This date is blocked. Please choose another date.',
                 ], 400);
             }
-    
+
             $serviceCount = count($request->input('services'));
             try {
                 $startTime = Carbon::createFromFormat('Y-m-d H:i', $request->AppointmentDate . ' ' . $request->AppointmentTime);
@@ -74,7 +353,7 @@ class AppointmentController extends Controller
                 return response()->json(['success' => false, 'message' => 'Invalid time format. Use HH:MM (e.g., 11:00).'], 400);
             }
             $endTime = $startTime->copy()->addHours($serviceCount);
-    
+
             // Check slot availability (direct + overlaps)
             $appointments = Appointment::where('AppointmentDate', $request->AppointmentDate)
                 ->whereNotIn('AppointmentStatus', ['Declined', 'Cancelled'])
@@ -87,26 +366,25 @@ class AppointmentController extends Controller
                         'duration' => $serviceCount,
                     ];
                 });
-    
+
             $affectedTimes = [];
             $currentTime = $startTime->copy();
             while ($currentTime->lessThan($endTime)) {
                 $affectedTimes[] = $currentTime->format('H:i');
                 $currentTime->addHours(1);
             }
-    
+
             foreach ($affectedTimes as $time) {
                 $directBookings = $appointments->where('start.format', 'H:i', $time)->count();
                 $overlaps = $appointments->filter(function ($appt) use ($time) {
-                    $apptStart = $appt['start'];
-                    $apptEnd = $apptStart->copy()->addHours($appt['duration']);
-                    return $apptStart->lessThan(Carbon::parse($time)) && $apptEnd->greaterThan(Carbon::parse($time));
+                    $apptEnd = $appt['start']->copy()->addHours($appt['duration']);
+                    return $appt['start']->lessThan(Carbon::parse($time)) && $apptEnd->greaterThan(Carbon::parse($time));
                 })->count();
                 if ($directBookings + $overlaps >= 5) {
                     return response()->json(['success' => false, 'message' => "Time slot $time is fully booked"], 400);
                 }
             }
-    
+
             // Check dentist availability if specified
             if ($DentistID) {
                 $dentist = Dentist::find($DentistID);
@@ -118,14 +396,14 @@ class AppointmentController extends Controller
                 if (is_array($dayOff) && in_array($appointmentDay, $dayOff)) {
                     return response()->json(['success' => false, 'message' => 'The selected dentist is unavailable on the chosen date.'], 400);
                 }
-    
+
                 \Log::info('Checking dentist availability', [
                     'DentistID' => $DentistID,
                     'AppointmentDate' => $request->AppointmentDate,
                     'StartTime' => $startTime->format('H:i'),
                     'EndTime' => $endTime->format('H:i'),
                 ]);
-    
+
                 $conflictingAppointments = Appointment::where('DentistID', $DentistID)
                     ->where('AppointmentDate', $request->AppointmentDate)
                     ->whereNotIn('AppointmentStatus', ['Cancelled', 'Declined'])
@@ -134,7 +412,7 @@ class AppointmentController extends Controller
                             ->orWhere(function ($q) use ($startTime, $endTime) {
                                 $q->where('AppointmentTime', '<', $endTime->format('H:i'))
                                     ->whereHas('servicesAvailed', function ($subQ) use ($startTime) {
-                                        $subQ->select('services_availed.AppointmentID') // Explicitly select only AppointmentID
+                                        $subQ->select('services_availed.AppointmentID')
                                             ->selectRaw('COUNT(*) as service_count, appointments.AppointmentTime')
                                             ->groupBy('services_availed.AppointmentID', 'appointments.AppointmentTime')
                                             ->havingRaw('ADDTIME(appointments.AppointmentTime, CONCAT(service_count, ":00:00")) > ?', [$startTime->format('H:i')]);
@@ -142,12 +420,12 @@ class AppointmentController extends Controller
                             });
                     })
                     ->exists();
-    
+
                 if ($conflictingAppointments) {
                     return response()->json(['success' => false, 'message' => 'Dentist is unavailable for this duration'], 400);
                 }
             }
-    
+
             $appointment = Appointment::create([
                 'AppointmentDate' => $request->AppointmentDate,
                 'AppointmentTime' => $request->AppointmentTime,
@@ -156,7 +434,7 @@ class AppointmentController extends Controller
                 'AppointmentStatus' => 'Pending',
                 'PatientNote' => $request->PatientNote,
             ]);
-    
+
             // Logging
             $user = auth()->user();
             $dentistName = $appointment->dentist 
@@ -169,21 +447,21 @@ class AppointmentController extends Controller
                 date('F j, Y g:i A', strtotime($appointment->AppointmentDate . ' ' . $appointment->AppointmentTime)) . 
                 " with {$dentistName}"
             ));
-    
+
             // Define $serviceNames and ensure it's an array
             $serviceNames = $request->input('services', []);
             \Log::info('Service Names from Request:', ['serviceNames' => $serviceNames]);
-    
+
             $serviceIDs = Service::whereIn('ServiceName', $serviceNames)
                 ->pluck('ServiceID')
                 ->toArray();
-    
+
             \Log::info('Mapped Service IDs:', ['serviceNames' => $serviceNames, 'serviceIDs' => $serviceIDs]);
-    
+
             if (empty($serviceIDs)) {
                 throw new \Exception('No valid ServiceIDs found for services: ' . implode(', ', $serviceNames));
             }
-    
+
             foreach ($serviceIDs as $serviceID) {
                 $service = Service::find($serviceID);
                 $serviceAvailed = ServicesAvailed::create([
@@ -191,19 +469,19 @@ class AppointmentController extends Controller
                     'ServiceID' => $serviceID,
                     'Status' => 'Pending',
                 ]);
-    
+
                 \Log::info('Created ServicesAvailed record:', [
                     'ServiceAvailedID' => $serviceAvailed->ServiceAvailedID,
                     'AppointmentID' => $serviceAvailed->AppointmentID,
                     'ServiceID' => $serviceAvailed->ServiceID,
                 ]);
-    
+
                 if ($service->IsMultiVisit) {
                     $existingProgress = TreatmentProgress::where('PatientID', $appointment->PatientID)
                         ->where('TreatmentName', $service->ServiceName)
                         ->where('Status', '!=', 'Completed')
                         ->first();
-    
+
                     if ($existingProgress) {
                         $visitCount = ServicesAvailed::where('TreatmentProgressID', $existingProgress->TreatmentProgressID)
                             ->join('appointments', 'services_availed.AppointmentID', '=', 'appointments.AppointmentID')
@@ -213,7 +491,7 @@ class AppointmentController extends Controller
                         $existingProgress->save();
                         $serviceAvailed->TreatmentProgressID = $existingProgress->TreatmentProgressID;
                         $serviceAvailed->save();
-    
+
                         \Log::info("Updated existing TreatmentProgress VisitCount", [
                             'PatientID' => $appointment->PatientID,
                             'TreatmentProgressID' => $existingProgress->TreatmentProgressID,
@@ -232,16 +510,16 @@ class AppointmentController extends Controller
                             'EndDate' => null,
                             'Status' => 'In Progress',
                         ]);
-    
+
                         \Log::info('Created new TreatmentProgress record:', [
                             'TreatmentProgressID' => $treatmentProgress->TreatmentProgressID,
                             'PatientID' => $treatmentProgress->PatientID,
                             'TreatmentName' => $treatmentProgress->TreatmentName,
                         ]);
-    
+
                         $serviceAvailed->TreatmentProgressID = $treatmentProgress->TreatmentProgressID;
                         $serviceAvailed->save();
-    
+
                         \Log::info("Updated ServicesAvailed with TreatmentProgressID", [
                             'ServiceAvailedID' => $serviceAvailed->ServiceAvailedID,
                             'TreatmentProgressID' => $serviceAvailed->TreatmentProgressID,
@@ -249,7 +527,7 @@ class AppointmentController extends Controller
                     }
                 }
             }
-    
+
             // Send booking confirmation email to patient
             try {
                 $patientEmail = $appointment->patient->user->Email;
@@ -281,7 +559,7 @@ class AppointmentController extends Controller
                     'Stack' => $e->getTraceAsString(),
                 ]);
             }
-    
+
             if ($request->expectsJson()) {
                 return response()->json(
                     [
@@ -300,7 +578,7 @@ class AppointmentController extends Controller
                     201
                 );
             }
-    
+
             return redirect()->route('patientappointments');
         } catch (\Exception $e) {
             \Log::error('Error booking appointment: ' . $e->getMessage() . ' | Stack: ' . $e->getTraceAsString(), [
@@ -309,6 +587,53 @@ class AppointmentController extends Controller
             return response()->json(['success' => false, 'message' => 'An error occurred while booking the appointment. Please try again.'], 500);
         }
     }
+
+    // UNCOMMENT TO RESTRICT PAST DATES AGAIN
+    // public function checkPatientAppointmentDate(Request $request)
+    // {
+    //     try {
+    //         // Ensure the user is authenticated
+    //         if (!auth()->check()) {
+    //             return response()->json(['success' => false, 'message' => 'Unauthorized. Please log in.'], 401);
+    //         }
+    
+    //         $PatientId = auth()->user()->patient ? auth()->user()->patient->PatientID : null;
+    //         if (!$PatientId) {
+    //             // Log this for debugging and return an error
+    //             \Log::warning('Patient ID not found for authenticated user', ['user_id' => auth()->id()]);
+    //             return response()->json(['success' => false, 'message' => 'Patient ID not found.'], 400);
+    //         }
+    
+    //         $request->validate([
+    //             'date' => 'required|date|after_or_equal:today',
+    //         ]);
+    
+    //         $date = $request->input('date');
+    
+    //         // Check if the date is blocked (clinic-wide or for any specific dentist)
+    //         if ($this->isDateBlocked($date)) {
+    //             return response()->json([
+    //                 'success' => true,
+    //                 'hasAppointment' => true, // Treat blocked dates as unavailable
+    //                 'message' => 'This date is blocked and unavailable for booking.',
+    //             ]);
+    //         }
+    
+    //         $hasAppointment = Appointment::where('PatientID', $PatientId)
+    //             ->where('AppointmentDate', $date)
+    //             ->exists();
+    
+    //         return response()->json([
+    //             'success' => true,
+    //             'hasAppointment' => $hasAppointment,
+    //             'message' => $hasAppointment ? 'You already have an appointment scheduled on this day. Please choose a different date.' : 'Date is available.'
+    //         ]);
+    //     } catch (\Exception $e) {
+    //         \Log::error('Error checking appointment date: ' . $e->getMessage());
+    //         return response()->json(['success' => false, 'message' => 'Failed to check date availability: ' . $e->getMessage()], 500);
+    //     }
+    // }
+
     public function checkPatientAppointmentDate(Request $request)
     {
         try {
@@ -316,20 +641,21 @@ class AppointmentController extends Controller
             if (!auth()->check()) {
                 return response()->json(['success' => false, 'message' => 'Unauthorized. Please log in.'], 401);
             }
-    
+
             $PatientId = auth()->user()->patient ? auth()->user()->patient->PatientID : null;
             if (!$PatientId) {
                 // Log this for debugging and return an error
                 \Log::warning('Patient ID not found for authenticated user', ['user_id' => auth()->id()]);
                 return response()->json(['success' => false, 'message' => 'Patient ID not found.'], 400);
             }
-    
+
+            // Update validation to accept any valid date (remove 'after_or_equal:today')
             $request->validate([
-                'date' => 'required|date|after_or_equal:today',
+                'date' => 'required|date', // Only require a valid date format
             ]);
-    
+
             $date = $request->input('date');
-    
+
             // Check if the date is blocked (clinic-wide or for any specific dentist)
             if ($this->isDateBlocked($date)) {
                 return response()->json([
@@ -338,11 +664,11 @@ class AppointmentController extends Controller
                     'message' => 'This date is blocked and unavailable for booking.',
                 ]);
             }
-    
+
             $hasAppointment = Appointment::where('PatientID', $PatientId)
                 ->where('AppointmentDate', $date)
                 ->exists();
-    
+
             return response()->json([
                 'success' => true,
                 'hasAppointment' => $hasAppointment,
@@ -1611,59 +1937,208 @@ public function getOwnerCalendarAppointments(Request $request)
         }
     }
 
+    // UNCOMMENT TO RESTRICT PAST DATES AGAIN
+    // public function checkDentistAvailability(Request $request)
+    // {
+    //     try {
+    //         $request->validate([
+    //             'dentist_id' => 'required|exists:dentists,DentistID',
+    //             'date' => 'required|date|after_or_equal:today',
+    //             'time' => 'required',
+    //             'service_count' => 'required|integer|min:1|max:3',
+    //         ]);
+            
+    //         $dentistId = $request->input('dentist_id');
+    //         $date = $request->input('date');
+    //         $time = $request->input('time');
+    //         $serviceCount = (int) $request->input('service_count');
+    //         $durationHours = $serviceCount;
+            
+    //         $dentist = Dentist::find($dentistId);
+    //         $dayOff = json_decode($dentist->DayOff, true);
+    //         $appointmentDay = Carbon::parse($date)->format('l');
+    //         if (is_array($dayOff) && in_array($appointmentDay, $dayOff)) {
+    //             return response()->json(['is_available' => false, 'message' => 'Dentist is off on this day']);
+    //         }
+            
+    //         $startTime = Carbon::createFromFormat('Y-m-d H:i', "$date $time");
+    //         $endTime = $startTime->copy()->addHours($durationHours);
+            
+    //         // For same-day bookings, ensure the selected time is in the future
+    //         $isToday = Carbon::parse($date)->isToday();
+    //         if ($isToday && $startTime->isPast()) {
+    //             return response()->json(['is_available' => false, 'message' => 'Selected time is in the past.']);
+    //         }
+            
+    //         $appointments = Appointment::withCount('servicesAvailed')
+    //             ->where('DentistID', $dentistId)
+    //             ->where('AppointmentDate', $date)
+    //             ->whereNotIn('AppointmentStatus', ['Cancelled', 'Declined'])
+    //             ->get();
+            
+    //         $conflictingAppointments = $appointments->filter(function ($appt) use ($startTime, $endTime) {
+    //             $apptStart = Carbon::createFromFormat('H:i:s', $appt->AppointmentTime);
+    //             $apptEnd = $apptStart->copy()->addHours($appt->services_availed_count ?? 1);
+    //             return $startTime->lessThan($apptEnd) && $endTime->greaterThan($apptStart);
+    //         });
+            
+    //         return response()->json(['is_available' => $conflictingAppointments->isEmpty()]);
+
+        
+    //     } catch (\Exception $e) {
+    //         Log::error('Error checking dentist availability: ' . $e->getMessage());
+    //         return response()->json(['success' => false, 'message' => 'Failed to check availability'], 500);
+    //     }
+    // }
+
     public function checkDentistAvailability(Request $request)
-{
-    try {
-        $request->validate([
-            'dentist_id' => 'required|exists:dentists,DentistID',
-            'date' => 'required|date|after_or_equal:today',
-            'time' => 'required',
-            'service_count' => 'required|integer|min:1|max:3',
-        ]);
-        
-        $dentistId = $request->input('dentist_id');
-        $date = $request->input('date');
-        $time = $request->input('time');
-        $serviceCount = (int) $request->input('service_count');
-        $durationHours = $serviceCount;
-        
-        $dentist = Dentist::find($dentistId);
-        $dayOff = json_decode($dentist->DayOff, true);
-        $appointmentDay = Carbon::parse($date)->format('l');
-        if (is_array($dayOff) && in_array($appointmentDay, $dayOff)) {
-            return response()->json(['is_available' => false, 'message' => 'Dentist is off on this day']);
-        }
-        
-        $startTime = Carbon::createFromFormat('Y-m-d H:i', "$date $time");
-        $endTime = $startTime->copy()->addHours($durationHours);
-        
-        // For same-day bookings, ensure the selected time is in the future
-        $isToday = Carbon::parse($date)->isToday();
-        if ($isToday && $startTime->isPast()) {
-            return response()->json(['is_available' => false, 'message' => 'Selected time is in the past.']);
-        }
-        
-        $appointments = Appointment::withCount('servicesAvailed')
-            ->where('DentistID', $dentistId)
-            ->where('AppointmentDate', $date)
-            ->whereNotIn('AppointmentStatus', ['Cancelled', 'Declined'])
-            ->get();
-        
-        $conflictingAppointments = $appointments->filter(function ($appt) use ($startTime, $endTime) {
-            $apptStart = Carbon::createFromFormat('H:i:s', $appt->AppointmentTime);
-            $apptEnd = $apptStart->copy()->addHours($appt->services_availed_count ?? 1);
-            return $startTime->lessThan($apptEnd) && $endTime->greaterThan($apptStart);
-        });
-        
-        return response()->json(['is_available' => $conflictingAppointments->isEmpty()]);
+    {
+        try {
+            $request->validate([
+                'dentist_id' => 'required|exists:dentists,DentistID',
+                'date' => 'required|date', // Remove 'after_or_equal:today' to allow past dates
+                'time' => 'required',
+                'service_count' => 'required|integer|min:1|max:3', // Ensure integer validation
+            ]);
+            
+            $dentistId = $request->input('dentist_id');
+            $date = $request->input('date');
+            $time = $request->input('time');
+            $serviceCount = (int) $request->input('service_count');
+            $durationHours = $serviceCount;
+            
+            $dentist = Dentist::find($dentistId);
+            $dayOff = json_decode($dentist->DayOff, true);
+            $appointmentDay = Carbon::parse($date)->format('l');
+            if (is_array($dayOff) && in_array($appointmentDay, $dayOff)) {
+                return response()->json(['is_available' => false, 'message' => 'Dentist is off on this day']);
+            }
+            
+            $startTime = Carbon::createFromFormat('Y-m-d H:i', "$date $time");
+            $endTime = $startTime->copy()->addHours($durationHours);
+            
+            // For same-day bookings, ensure the selected time is in the future
+            $isToday = Carbon::parse($date)->isToday();
+            if ($isToday && $startTime->isPast()) {
+                return response()->json(['is_available' => false, 'message' => 'Selected time is in the past.']);
+            }
+            
+            $appointments = Appointment::withCount('servicesAvailed')
+                ->where('DentistID', $dentistId)
+                ->where('AppointmentDate', $date)
+                ->whereNotIn('AppointmentStatus', ['Cancelled', 'Declined'])
+                ->get();
+            
+            $conflictingAppointments = $appointments->filter(function ($appt) use ($startTime, $endTime) {
+                $apptStart = Carbon::createFromFormat('H:i:s', $appt->AppointmentTime);
+                $apptEnd = $apptStart->copy()->addHours($appt->services_availed_count ?? 1);
+                return $startTime->lessThan($apptEnd) && $endTime->greaterThan($apptStart);
+            });
+            
+            return response()->json(['is_available' => $conflictingAppointments->isEmpty()]);
 
-    
-    } catch (\Exception $e) {
-        Log::error('Error checking dentist availability: ' . $e->getMessage());
-        return response()->json(['success' => false, 'message' => 'Failed to check availability'], 500);
+        } catch (\Exception $e) {
+            Log::error('Error checking dentist availability: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to check availability'], 500);
+        }
     }
-}
 
+    // UNCOMMENT TO RESTRICT PAST DATES AGAIN
+    // public function filterAvailableTimes(Request $request)
+    // {
+    //     try {
+    //         Log::info('Received filterAvailableTimes request:', $request->all());
+
+    //         $request->validate([
+    //             'date' => 'required|date|after_or_equal:today',
+    //             'times' => 'required|array',
+    //             'times.*' => 'string|regex:/^\d{1,2}:\d{2}$/',
+    //         ]);
+            
+    //         $date = $request->input('date');
+    //         $times = $request->input('times');
+            
+    //         // Exclude Declined and Cancelled appointments
+    //         $appointments = Appointment::where('AppointmentDate', $date)
+    //             ->whereNotIn('AppointmentStatus', ['Declined', 'Cancelled'])
+    //             ->with(['servicesAvailed' => function ($query) {
+    //                 $query->select('AppointmentID', 'ServiceID');
+    //             }])
+    //             ->get();
+            
+    //         $appointmentData = $appointments->map(function ($appointment) {
+    //             $serviceCount = $appointment->servicesAvailed ? $appointment->servicesAvailed->count() : 0;
+    //             $time = $appointment->AppointmentTime;
+            
+    //             $time = preg_match('/^([0-9]{1,2}):([0-9]{2})$/', $time, $matches)
+    //                 ? sprintf('%02d:%02d', $matches[1], $matches[2])
+    //                 : $time;
+            
+    //             try {
+    //                 $start = Carbon::createFromFormat('H:i', $time);
+    //             } catch (\Exception $e) {
+    //                 try {
+    //                     $start = Carbon::createFromFormat('H:i:s', $time);
+    //                 } catch (\Exception $e) {
+    //                     Log::warning("Invalid AppointmentTime format: $time", ['error' => $e->getMessage()]);
+    //                     return null;
+    //                 }
+    //             }
+            
+    //             return [
+    //                 'start' => $start,
+    //                 'duration' => $serviceCount ?: 1,
+    //             ];
+    //         })->filter();
+            
+    //         $isToday = Carbon::parse($date)->isToday();
+    //         $currentTime = Carbon::now();
+            
+    //         $timeSlots = [];
+    //         foreach ($times as $time) {
+    //             try {
+    //                 $carbonTime = Carbon::createFromFormat('H:i', $time);
+    //                 // Skip past times for same-day bookings
+    //                 if ($isToday && $carbonTime->lessThanOrEqualTo($currentTime)) {
+    //                     $timeSlots[] = [
+    //                         'time' => $time,
+    //                         'is_available' => false,
+    //                     ];
+    //                     continue;
+    //                 }
+            
+    //                 $formattedTime = $carbonTime->format('H:i');
+    //                 $directBookings = $appointmentData->filter(function ($appt) use ($formattedTime) {
+    //                     return $appt['start']->format('H:i') === $formattedTime;
+    //                 })->count();
+            
+    //                 $overlaps = $appointmentData->filter(function ($appt) use ($carbonTime) {
+    //                     $endTime = $appt['start']->copy()->addHours($appt['duration']);
+    //                     return $appt['start']->lessThan($carbonTime) && $endTime->greaterThan($carbonTime);
+    //                 })->count();
+            
+    //                 $totalUsage = $directBookings + $overlaps;
+    //                 $isAvailable = $totalUsage < 5;
+            
+    //                 $timeSlots[] = [
+    //                     'time' => $time,
+    //                     'is_available' => $isAvailable,
+    //                 ];
+    //             } catch (\Exception $e) {
+    //                 Log::warning("Failed to parse time: $time", ['error' => $e->getMessage()]);
+    //                 $timeSlots[] = [
+    //                     'time' => $time,
+    //                     'is_available' => false,
+    //                 ];
+    //             }
+    //         }
+            
+    //         return response()->json(['time_slots' => $timeSlots]);
+    //     } catch (\Exception $e) {
+    //         Log::error('Error filtering available times: ' . $e->getMessage(), ['stack' => $e->getTraceAsString()]);
+    //         return response()->json(['success' => false, 'message' => 'Failed to filter available times'], 500);
+    //     }
+    // }
 
     public function filterAvailableTimes(Request $request)
     {
@@ -1671,7 +2146,7 @@ public function getOwnerCalendarAppointments(Request $request)
             Log::info('Received filterAvailableTimes request:', $request->all());
 
             $request->validate([
-                'date' => 'required|date|after_or_equal:today',
+                'date' => 'required|date', // Remove 'after_or_equal:today' to allow past dates
                 'times' => 'required|array',
                 'times.*' => 'string|regex:/^\d{1,2}:\d{2}$/',
             ]);
