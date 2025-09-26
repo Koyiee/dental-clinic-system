@@ -2092,14 +2092,15 @@ export default defineComponent({
       }
 
       // Check for past dates, today, or tomorrow
-      if (
-        clickedDate < today ||
-        clickedDate.toDateString() === today.toDateString() ||
-        clickedDate.toDateString() === tomorrow.toDateString()
-      ) {
-        this.openInfoModal("Bookings must be made 2 days in advance. Please select a different date.");
-        return;
-      }
+      // UNCOMMENT TO RESTRICT PAST DATES AGAIN
+      // if (
+      //   clickedDate < today ||
+      //   clickedDate.toDateString() === today.toDateString() ||
+      //   clickedDate.toDateString() === tomorrow.toDateString()
+      // ) {
+      //   this.openInfoModal("Bookings must be made 2 days in advance. Please select a different date.");
+      //   return;
+      // }
 
       // Check for blocked dates
       if (this.blockedDates.includes(dateString)) {
