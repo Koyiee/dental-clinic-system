@@ -127,86 +127,167 @@ class HRAdminController extends Controller
         return response()->json($formatted);
     }
 
+    // public function updateStatus(Request $request)
+    // {
+    //     $request->validate([
+    //         'AccountID' => 'required|exists:user_accounts,UserID',
+    //         'AccountStatus' => 'required|in:active,deactivated',
+    //     ]);
+    
+    //     // Ensure HR admin or owner is authenticated
+    //     $loggedUser = Auth::user();
+    //     if (!$loggedUser) {
+    //         \Log::error('No authenticated user');
+    //         return response()->json(['error' => 'Unauthorized'], 401);
+    //     }
+    
+    //     // Check if the current user is HRAdmin or Owner
+    //     if (!in_array($loggedUser->UserAccount->UserType, ['HRAdmin', 'Owner'])) {
+    //         \Log::error('Unauthorized attempt to update status', ['user_id' => $loggedUser->UserID]);
+    //         return response()->json(['error' => 'Unauthorized'], 403);
+    //     }
+    
+    //     // Find the user account
+    //     $account = UserAccount::where('UserID', $request->AccountID)->firstOrFail();
+    
+    //     // Allow toggling for Dentist, HRAdmin, Owner, or Patient
+    //     if (!in_array($account->UserType, ['Dentist', 'HRAdmin', 'Owner', 'Patient'])) {
+    //         \Log::error('Invalid user type for status update', [
+    //             'id' => $request->AccountID,
+    //             'type' => $account->UserType
+    //         ]);
+    //         return response()->json(['error' => 'Can only toggle dentist, HR admin, owner, or patient accounts'], 400);
+    //     }
+    
+    //     // If the target account is an Owner, check if it's the superowner
+    //     if ($account->UserType === 'Owner') {
+    //         $owner = \App\Models\Owner::where('UserID', $account->UserID)->first();
+    //         if ($owner && $owner->IsSuperOwner && $request->AccountStatus === 'deactivated') {
+    //             \Log::error('Attempt to deactivate superowner', [
+    //                 'user_id' => $account->UserID,
+    //                 'attempted_by' => $loggedUser->UserID
+    //             ]);
+    //             return response()->json(['message' => 'Superowner cannot be deactivated'], 403);
+    //         }
+    //     }
+    
+    //     // Get user details for logging
+    //     $user = User::where('UserID', $account->UserID)->first();
+    //     if (!$user) {
+    //         \Log::error('User details not found', ['id' => $request->AccountID]);
+    //         return response()->json(['message' => 'User details not found'], 404);
+    //     }
+    
+    //     // Check if status is actually changing
+    //     $previousStatus = $account->AccountStatus;
+    //     if ($previousStatus === $request->AccountStatus) {
+    //         return response()->json(['message' => 'No status change required'], 200);
+    //     }
+    
+    //     // Update the account status
+    //     $account->AccountStatus = $request->AccountStatus;
+    //     $account->save();
+    
+    //     // Dispatch UserActionOccurred event for deactivation or activation
+    //     $actionType = $request->AccountStatus === 'deactivated' ? 'User Deactivated' : 'User Activated';
+    //     $actionMessage = $request->AccountStatus === 'deactivated'
+    //         ? "{$loggedUser->UserAccount->UserType} {$loggedUser->FirstName} {$loggedUser->LastName} deactivated {$account->UserType} {$user->FirstName} {$user->LastName}"
+    //         : "{$loggedUser->UserAccount->UserType} {$loggedUser->FirstName} {$loggedUser->LastName} activated {$account->UserType} {$user->FirstName} {$user->LastName}";
+    
+    //     event(new \App\Events\UserActionOccurred(
+    //         $loggedUser->UserID,
+    //         $actionType,
+    //         $actionMessage
+    //     ));
+    
+    //     \Log::info("User {$request->AccountStatus} successfully", [
+    //         'user_id' => $account->UserID,
+    //         'updated_by' => $loggedUser->UserID,
+    //     ]);
+    
+    //     return response()->json(['message' => 'Status updated successfully']);
+    // }
+
     public function updateStatus(Request $request)
-    {
-        $request->validate([
-            'AccountID' => 'required|exists:user_accounts,UserID',
-            'AccountStatus' => 'required|in:active,deactivated',
-        ]);
-    
-        // Ensure HR admin or owner is authenticated
-        $loggedUser = Auth::user();
-        if (!$loggedUser) {
-            \Log::error('No authenticated user');
-            return response()->json(['error' => 'Unauthorized'], 401);
-        }
-    
-        // Check if the current user is HRAdmin or Owner
-        if (!in_array($loggedUser->UserAccount->UserType, ['HRAdmin', 'Owner'])) {
-            \Log::error('Unauthorized attempt to update status', ['user_id' => $loggedUser->UserID]);
-            return response()->json(['error' => 'Unauthorized'], 403);
-        }
-    
-        // Find the user account
-        $account = UserAccount::where('UserID', $request->AccountID)->firstOrFail();
-    
-        // Allow toggling for Dentist, HRAdmin, Owner, or Patient
-        if (!in_array($account->UserType, ['Dentist', 'HRAdmin', 'Owner', 'Patient'])) {
-            \Log::error('Invalid user type for status update', [
-                'id' => $request->AccountID,
-                'type' => $account->UserType
-            ]);
-            return response()->json(['error' => 'Can only toggle dentist, HR admin, owner, or patient accounts'], 400);
-        }
-    
-        // If the target account is an Owner, check if it's the superowner
-        if ($account->UserType === 'Owner') {
-            $owner = \App\Models\Owner::where('UserID', $account->UserID)->first();
-            if ($owner && $owner->IsSuperOwner && $request->AccountStatus === 'deactivated') {
-                \Log::error('Attempt to deactivate superowner', [
-                    'user_id' => $account->UserID,
-                    'attempted_by' => $loggedUser->UserID
-                ]);
-                return response()->json(['message' => 'Superowner cannot be deactivated'], 403);
-            }
-        }
-    
-        // Get user details for logging
-        $user = User::where('UserID', $account->UserID)->first();
-        if (!$user) {
-            \Log::error('User details not found', ['id' => $request->AccountID]);
-            return response()->json(['message' => 'User details not found'], 404);
-        }
-    
-        // Check if status is actually changing
-        $previousStatus = $account->AccountStatus;
-        if ($previousStatus === $request->AccountStatus) {
-            return response()->json(['message' => 'No status change required'], 200);
-        }
-    
-        // Update the account status
-        $account->AccountStatus = $request->AccountStatus;
-        $account->save();
-    
-        // Dispatch UserActionOccurred event for deactivation or activation
-        $actionType = $request->AccountStatus === 'deactivated' ? 'User Deactivated' : 'User Activated';
-        $actionMessage = $request->AccountStatus === 'deactivated'
-            ? "{$loggedUser->UserAccount->UserType} {$loggedUser->FirstName} {$loggedUser->LastName} deactivated {$account->UserType} {$user->FirstName} {$user->LastName}"
-            : "{$loggedUser->UserAccount->UserType} {$loggedUser->FirstName} {$loggedUser->LastName} activated {$account->UserType} {$user->FirstName} {$user->LastName}";
-    
-        event(new \App\Events\UserActionOccurred(
-            $loggedUser->UserID,
-            $actionType,
-            $actionMessage
-        ));
-    
-        \Log::info("User {$request->AccountStatus} successfully", [
-            'user_id' => $account->UserID,
-            'updated_by' => $loggedUser->UserID,
-        ]);
-    
-        return response()->json(['message' => 'Status updated successfully']);
+{
+    $request->validate([
+        'AccountID' => 'required|exists:users,UserID', // Changed from user_accounts to users
+        'AccountStatus' => 'required|in:active,deactivated',
+    ]);
+
+    // Ensure HR admin or owner is authenticated
+    $loggedUser = Auth::user();
+    if (!$loggedUser) {
+        \Log::error('No authenticated user');
+        return response()->json(['error' => 'Unauthorized'], 401);
     }
+
+    // Check if the current user is HRAdmin or Owner
+    if (!in_array($loggedUser->UserAccount->UserType, ['HRAdmin', 'Owner'])) {
+        \Log::error('Unauthorized attempt to update status', ['user_id' => $loggedUser->UserID]);
+        return response()->json(['error' => 'Unauthorized'], 403);
+    }
+
+    // Find the user account
+    $account = UserAccount::where('UserID', $request->AccountID)->firstOrFail();
+
+    // Allow toggling for Dentist, HRAdmin, Owner, or Patient
+    if (!in_array($account->UserType, ['Dentist', 'HRAdmin', 'Owner', 'Patient'])) {
+        \Log::error('Invalid user type for status update', [
+            'id' => $request->AccountID,
+            'type' => $account->UserType
+        ]);
+        return response()->json(['error' => 'Can only toggle dentist, HR admin, owner, or patient accounts'], 400);
+    }
+
+    // If the target account is an Owner, check if it's the superowner
+    if ($account->UserType === 'Owner') {
+        $owner = \App\Models\Owner::where('UserID', $account->UserID)->first();
+        if ($owner && $owner->IsSuperOwner && $request->AccountStatus === 'deactivated') {
+            \Log::error('Attempt to deactivate superowner', [
+                'user_id' => $account->UserID,
+                'attempted_by' => $loggedUser->UserID
+            ]);
+            return response()->json(['message' => 'Superowner cannot be deactivated'], 403);
+        }
+    }
+
+    // Get user details for logging
+    $user = User::where('UserID', $account->UserID)->first();
+    if (!$user) {
+        \Log::error('User details not found', ['id' => $request->AccountID]);
+        return response()->json(['message' => 'User details not found'], 404);
+    }
+
+    // Check if status is actually changing
+    $previousStatus = $account->AccountStatus;
+    if ($previousStatus === $request->AccountStatus) {
+        return response()->json(['message' => 'No status change required'], 200);
+    }
+
+    // Update the account status
+    $account->AccountStatus = $request->AccountStatus;
+    $account->save();
+
+    // Dispatch UserActionOccurred event for deactivation or activation
+    $actionType = $request->AccountStatus === 'deactivated' ? 'User Deactivated' : 'User Activated';
+    $actionMessage = $request->AccountStatus === 'deactivated'
+        ? "{$loggedUser->UserAccount->UserType} {$loggedUser->FirstName} {$loggedUser->LastName} deactivated {$account->UserType} {$user->FirstName} {$user->LastName}"
+        : "{$loggedUser->UserAccount->UserType} {$loggedUser->FirstName} {$loggedUser->LastName} activated {$account->UserType} {$user->FirstName} {$user->LastName}";
+
+    event(new \App\Events\UserActionOccurred(
+        $loggedUser->UserID,
+        $actionType,
+        $actionMessage
+    ));
+
+    \Log::info("User {$request->AccountStatus} successfully", [
+        'user_id' => $account->UserID,
+        'updated_by' => $loggedUser->UserID,
+    ]);
+
+    return response()->json(['message' => 'Status updated successfully']);
+}
 
     public function getOwners()
     {
