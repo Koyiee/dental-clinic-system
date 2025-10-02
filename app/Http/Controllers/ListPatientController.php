@@ -12,19 +12,29 @@ class ListPatientController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Patient::with('user');
+        // Updated: Include userAccount relationship to get AccountStatus
+        $query = Patient::with(['user.userAccount']);
 
         if ($request->has('search') && !empty($request->input('search'))) {
             $search = $request->input('search');
             $query->whereHas('user', function ($q) use ($search) {
                 $q->where('FirstName', 'like', "%{$search}%")
-                  ->orWhere('LastName', 'like', "%{$search}%");
+                  ->orWhere('LastName', 'like', "%{$search}%")
+                  ->orWhere('ContactNumber', 'like', "%{$search}%");
+            })
+            ->orWhere('PatientID', 'like', "%{$search}%");
+        }
+
+        // Add status filter
+        if ($request->has('status') && !empty($request->status)) {
+            $query->whereHas('user.userAccount', function ($q) use ($request) {
+                $q->where('AccountStatus', $request->status);
             });
         }
 
         $patients = $query->paginate(15);
 
-        // Transform the response to include GovernmentID and other necessary fields
+        // Transform the response to include AccountStatus
         $patients->getCollection()->transform(function ($patient) {
             return [
                 'PatientID' => $patient->PatientID,
@@ -39,10 +49,11 @@ class ListPatientController extends Controller
                     'ContactNumber' => $patient->user->ContactNumber,
                     'HomeTelephoneNumber' => $patient->user->HomeTelephoneNumber,
                     'Address' => $patient->user->Address,
+                    'AccountStatus' => $patient->user->userAccount->AccountStatus ?? 'active', // Add this line
                 ],
                 'GuardianName' => $patient->GuardianName,
                 'GuardianTelNumber' => $patient->GuardianTelNumber,
-                'GovernmentID' => $patient->GovernmentID, // Include GovernmentID
+                'GovernmentID' => $patient->GovernmentID,
                 'created_at' => $patient->created_at->toDateTimeString(),
             ];
         });
@@ -81,9 +92,8 @@ class ListPatientController extends Controller
                 \DB::raw('MAX(appointments.AppointmentDate) as lastAppointment'),
                 \DB::raw('(SELECT AppointmentDate FROM appointments a2 WHERE a2.PatientID = patients.PatientID AND a2.AppointmentDate > NOW() ORDER BY a2.AppointmentDate ASC LIMIT 1) as nextAppointment')
             )
-            ->groupBy('patients.PatientID', 'users.FirstName', 'users.LastName', 'users.ContactNumber', 'users.Email', 'users.Gender', 'users.BirthDate', 'users.Age', 'users.Address', 'patients.GuardianName', 'patients.GuardianTelNumber', 'patients.created_at','patients.Religion','patients.Nationality','patients.MaritalStatus',);
+            ->groupBy('patients.PatientID', 'users.FirstName', 'users.LastName', 'users.ContactNumber', 'users.Email', 'users.Gender', 'users.BirthDate', 'users.Age', 'users.Address', 'patients.GuardianName', 'patients.GuardianTelNumber', 'patients.created_at','patients.Religion','patients.Nationality','patients.MaritalStatus');
 
-        // Count distinct patients instead of total appointment rows
         $totalPatients = Appointment::where('DentistID', $dentistID)
             ->whereIn('AppointmentStatus', ['Completed', 'Confirmed'])
             ->distinct('PatientID')
@@ -98,5 +108,4 @@ class ListPatientController extends Controller
             'total' => $totalPatients,
         ]);
     }
-
 }
