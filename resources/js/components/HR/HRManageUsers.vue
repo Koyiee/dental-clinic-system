@@ -168,124 +168,147 @@
       
       <!-- Users Container -->
       <div class="users-container">
-        <div class="users-header">
-          <h3>List of {{ selectedUserType === 'patient' ? 'Patients' : 'Dentists' }}</h3>
-          <div class="header-actions">
-            <div class="user-type-selector">
-              <select id="user-type" v-model="selectedUserType" @change="fetchUsers">
-                <option value="patient">Patient</option>
-                <!-- <option value="dentist">Dentist</option> -->
-              </select>
-            </div>
-            <button class="add-user-btn" @click="openModal">
-              <i class='bx bx-plus'></i> Add {{ selectedUserType === 'patient' ? 'Patient' : 'Dentist' }}
+  <div class="users-header">
+    <h3>{{ totalUsers }} {{ selectedUserType === 'patient' ? 'Patients' : 'Dentists' }}</h3>
+    <div class="header-actions">
+      <div class="user-type-selector">
+        <select id="user-type" v-model="selectedUserType" @change="onUserTypeChange">
+          <option value="patient">Patient</option>
+          <!-- <option value="dentist">Dentist</option> -->
+        </select>
+      </div>
+      <button class="add-user-btn" @click="openModal">
+        <i class='bx bx-plus'></i> Add {{ selectedUserType === 'patient' ? 'Patient' : 'Dentist' }}
+      </button>
+    </div>
+  </div>
+  
+  <!-- Desktop Table -->
+  <div class="table-wrapper">
+    <table class="users-table desktop-table">
+      <thead>
+        <tr>
+          <th @click="sortTable('PatientID')" class="sortable-header">
+            Patient ID
+            <i v-if="sortConfig.key === 'PatientID'" class="bx" :class="getSortIconClass('PatientID')"></i>
+          </th>
+          <th @click="sortTable('LastName')" class="sortable-header">
+            {{ selectedUserType === 'patient' ? 'Patient Name' : 'Dentist Name' }}
+            <i v-if="sortConfig.key === 'LastName'" class="bx" :class="getSortIconClass('LastName')"></i>
+          </th>
+          <th @click="sortTable('AccountStatus')" class="sortable-header">
+            Account Status
+            <i v-if="sortConfig.key === 'AccountStatus'" class="bx" :class="getSortIconClass('AccountStatus')"></i>
+          </th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr 
+          v-for="user in displayedUsers" 
+          :key="user.UserID" 
+          class="user-row"
+          :class="{ 'clickable-row': selectedUserType === 'dentist' }"
+        >
+          <td class="truncate-cell">{{ user.PatientID || user.UserID }}</td>
+          <td class="truncate-cell">{{ user.LastName }}, {{ user.FirstName }}</td>
+          <td class="truncate-cell">
+            <span class="status-badge" :class="getStatusClass(user.AccountStatus)">
+              {{ capitalizeStatus(user.AccountStatus) }}
+            </span>
+          </td>
+          <td class="actions-cell">
+            <button 
+              v-if="selectedUserType === 'dentist'"
+              @click.stop="openDaysOffModal(user.UserID)" 
+              class="action-button edit-btn"
+              title="Edit Days Off"
+            >
+              Edit
+            </button>
+            <button 
+              @click.stop="toggleStatus(user.UserID, user.AccountStatus)" 
+              class="action-button"
+              :class="{ 'activate-btn': user.AccountStatus === 'deactivated', 'deactivate-btn': user.AccountStatus === 'active' || user.AccountStatus === 'archived' }"
+            >
+              {{ user.AccountStatus === 'deactivated' ? 'Activate' : 'Deactivate' }}
+            </button>
+          </td>
+        </tr>
+        <tr v-if="displayedUsers.length === 0">
+          <td :colspan="selectedUserType === 'dentist' ? 4 : 4" class="no-data">No Matching Users Found...</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  
+  <!-- Mobile Cards -->
+  <div class="mobile-cards">
+    <div 
+      v-for="user in displayedUsers" 
+      :key="user.UserID"
+      class="user-card"
+      :class="{ 'clickable-card': selectedUserType === 'dentist' }"
+    >
+      <div class="card-header">
+        <h4>{{ user.LastName }}, {{ user.FirstName }}</h4>
+        <span class="status-badge" :class="getStatusClass(user.AccountStatus)">
+          {{ capitalizeStatus(user.AccountStatus) }}
+        </span>
+      </div>
+      <div class="card-content">
+        <div class="card-row">
+          <span class="card-label">Patient ID:</span>
+          <span>{{ user.PatientID || user.UserID }}</span>
+        </div>
+        <div class="card-row">
+          <div class="mobile-actions">
+            <button 
+              v-if="selectedUserType === 'dentist'"
+              @click.stop="openDaysOffModal(user.UserID)" 
+              class="action-button-mobile edit-btn"
+            >
+              <i class='bx bx-calendar-edit'></i> Days Off
+            </button>
+            <button 
+              @click.stop="toggleStatus(user.UserID, user.AccountStatus)" 
+              class="action-button-mobile"
+              :class="{ 'activate-btn': user.AccountStatus === 'deactivated', 'deactivate-btn': user.AccountStatus === 'active' || user.AccountStatus === 'archived' }"
+            >
+              {{ user.AccountStatus === 'deactivated' ? 'Activate' : 'Deactivate' }}
             </button>
           </div>
         </div>
-        
-        <!-- Desktop Table -->
-        <div class="table-wrapper">
-          <table class="users-table desktop-table">
-            <thead>
-              <tr>
-                <th @click="sortTable('PatientID')" class="sortable-header">
-                  Patient ID
-                  <i v-if="sortConfig.key === 'PatientID'" class="bx" :class="getSortIconClass('PatientID')"></i>
-                </th>
-                <th @click="sortTable('LastName')" class="sortable-header">
-                  {{ selectedUserType === 'patient' ? 'Patient Name' : 'Dentist Name' }}
-                  <i v-if="sortConfig.key === 'LastName'" class="bx" :class="getSortIconClass('LastName')"></i>
-                </th>
-                <th @click="sortTable('AccountStatus')" class="sortable-header">
-                  Account Status
-                  <i v-if="sortConfig.key === 'AccountStatus'" class="bx" :class="getSortIconClass('AccountStatus')"></i>
-                </th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr 
-                v-for="user in displayedUsers" 
-                :key="user.UserID" 
-                class="user-row"
-                :class="{ 'clickable-row': selectedUserType === 'dentist' }"
-              >
-                <td class="truncate-cell">{{ user.PatientID || user.UserID }}</td>
-                <td class="truncate-cell">{{ user.LastName }}, {{ user.FirstName }}</td>
-                <td class="truncate-cell">
-                  <span class="status-badge" :class="getStatusClass(user.AccountStatus)">
-                    {{ capitalizeStatus(user.AccountStatus) }}
-                  </span>
-                </td>
-                <td class="actions-cell">
-                  <button 
-                    v-if="selectedUserType === 'dentist'"
-                    @click.stop="openDaysOffModal(user.UserID)" 
-                    class="action-button edit-btn"
-                    title="Edit Days Off"
-                  >
-                    Edit
-                  </button>
-                  <button 
-                    @click.stop="toggleStatus(user.UserID, user.AccountStatus)" 
-                    class="action-button"
-                    :class="{ 'activate-btn': user.AccountStatus === 'deactivated', 'deactivate-btn': user.AccountStatus === 'active' || user.AccountStatus === 'archived' }"
-                  >
-                    {{ user.AccountStatus === 'deactivated' ? 'Activate' : 'Deactivate' }}
-                  </button>
-                </td>
-              </tr>
-              <tr v-if="displayedUsers.length === 0">
-                <td :colspan="selectedUserType === 'dentist' ? 4 : 3" class="no-data">No Matching Users Found...</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        
-        <!-- Mobile Cards -->
-        <div class="mobile-cards">
-          <div 
-            v-for="user in displayedUsers" 
-            :key="user.UserID"
-            class="user-card"
-            :class="{ 'clickable-card': selectedUserType === 'dentist' }"
-          >
-            <div class="card-header">
-              <h4>{{ user.LastName }}, {{ user.FirstName }}</h4>
-              <span class="status-badge" :class="getStatusClass(user.AccountStatus)">
-                {{ capitalizeStatus(user.AccountStatus) }}
-              </span>
-            </div>
-            <div class="card-content">
-              <div class="card-row">
-                <span class="card-label">Patient ID:</span>
-                <span>{{ user.PatientID || user.UserID }}</span>
-              </div>
-              <div class="card-row">
-                <div class="mobile-actions">
-                  <button 
-                    v-if="selectedUserType === 'dentist'"
-                    @click.stop="openDaysOffModal(user.UserID)" 
-                    class="action-button-mobile edit-btn"
-                  >
-                    <i class='bx bx-calendar-edit'></i> Days Off
-                  </button>
-                 <button 
-                    @click.stop="toggleStatus(user.UserID, user.AccountStatus)" 
-                    class="action-button-mobile"
-                    :class="{ 'activate-btn': user.AccountStatus === 'deactivated', 'deactivate-btn': user.AccountStatus === 'active' || user.AccountStatus === 'archived' }"
-                  >
-                    {{ user.AccountStatus === 'deactivated' ? 'Activate' : 'Deactivate' }}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div v-if="displayedUsers.length === 0" class="no-data-mobile">
-            No Matching Users Found
-          </div>
-        </div>
       </div>
+    </div>
+    <div v-if="displayedUsers.length === 0" class="no-data-mobile">
+      No Matching Users Found
+    </div>
+  </div>
+  
+  <!-- Pagination Section - ADD THIS -->
+  <div class="see-more-container">
+    <div class="pagination-info">
+      Page {{ currentPage }} of {{ lastPage }}
+    </div>
+    <div class="pagination-actions">
+      <button 
+        class="pagination-btn prev" 
+        @click="changePage(currentPage - 1)" 
+        :disabled="currentPage === 1"
+      >
+        <i class='bx bx-chevron-left'></i> Previous
+      </button>
+      <button 
+        class="pagination-btn next" 
+        @click="changePage(currentPage + 1)" 
+        :disabled="currentPage === lastPage"
+      >
+        Next <i class='bx bx-chevron-right'></i>
+      </button>
+    </div>
+  </div>
+</div>
       
       <!-- Modal for Adding Users -->
       <div class="modal-overlay" v-if="isModalVisible" @click.self="closeModal">
@@ -794,6 +817,10 @@ export default {
   },
   data() {
     return {
+      currentPage: 1,
+      lastPage: 1,
+      perPage: 15, // Users per page
+      totalUsers: 0,
       isSidebarClosed: true,
       isModalVisible: false,
       isDaysOffModalVisible: false,
@@ -950,52 +977,67 @@ export default {
       return status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
     },
     async toggleStatus(userId, currentStatus) {
-      const newStatus = currentStatus === 'deactivated' ? 'active' : 'deactivated';
-      const action = newStatus === 'deactivated' ? 'deactivate' : 'activate';
-      const result = await Swal.fire({
-        title: `Confirm ${action}`,
-        text: `Are you sure you want to ${action} this ${this.selectedUserType}?`,
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#06693A',
-        cancelButtonColor: '#d33',
-        confirmButtonText: `Yes, ${action}`,
-        cancelButtonText: 'No, cancel'
+  const newStatus = currentStatus === 'deactivated' ? 'active' : 'deactivated';
+  const action = newStatus === 'deactivated' ? 'deactivate' : 'activate';
+  const userTypeDisplay = this.selectedUserType === 'patient' ? 'patient' : 'dentist';
+  
+  const result = await Swal.fire({
+    title: `Confirm ${action}`,
+    text: `Are you sure you want to ${action} this ${userTypeDisplay}?`,
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#06693A',
+    cancelButtonColor: '#d33',
+    confirmButtonText: `Yes, ${action}`,
+    cancelButtonText: 'No, cancel'
+  });
+
+  if (!result.isConfirmed) return;
+
+  try {
+    // Log what we're sending
+    console.log('Sending data:', {
+      AccountID: userId,
+      AccountStatus: newStatus
+    });
+    
+    const response = await axios.post('/hr/update-status', {
+      AccountID: userId,
+      AccountStatus: newStatus
+    });
+    
+    if (response.data.message) {
+      await Swal.fire({
+        title: 'Success',
+        text: `${userTypeDisplay.charAt(0).toUpperCase() + userTypeDisplay.slice(1)} ${action}d successfully!`,
+        icon: 'success',
+        timer: 2000,
+        showConfirmButton: false
       });
-
-      if (!result.isConfirmed) return;
-
-      try {
-        const response = await axios.post('/hr/update-status', {
-          AccountID: userId,
-          AccountStatus: newStatus
-        });
-        
-        if (response.data.message) {
-          await Swal.fire({
-            title: 'Success',
-            text: `${this.selectedUserType.charAt(0).toUpperCase() + this.selectedUserType.slice(1)} ${action}d successfully!`,
-            icon: 'success',
-            timer: 2000,
-            showConfirmButton: false
-          });
-          const userIndex = this.users.findIndex(user => user.UserID === userId);
-          if (userIndex !== -1) {
-            this.users[userIndex].AccountStatus = newStatus;
-            this.users = [...this.users];
-            this.updateDisplayedUsers();
-          }
-        }
-      } catch (error) {
-        console.error(`Error ${action}ing dentist:`, error);
-        await Swal.fire({
-          title: 'Error',
-          text: `Failed to ${action} dentist. Please try again.`,
-          icon: 'error',
-          confirmButtonColor: '#06693A',
-        });
+      
+      const userIndex = this.users.findIndex(user => user.UserID === userId);
+      if (userIndex !== -1) {
+        this.users[userIndex].AccountStatus = newStatus;
+        this.users = [...this.users];
+        this.updateDisplayedUsers();
       }
-    },
+    }
+  } catch (error) {
+    console.error(`Error ${action}ing ${userTypeDisplay}:`, error);
+    
+    // ADD THIS: Log the actual validation errors
+    if (error.response && error.response.data && error.response.data.errors) {
+      console.log('Validation errors:', error.response.data.errors);
+    }
+    
+    await Swal.fire({
+      title: 'Error',
+      text: `Failed to ${action} ${userTypeDisplay}. Please try again.`,
+      icon: 'error',
+      confirmButtonColor: '#06693A',
+    });
+  }
+},
     toggleSidebar() {
       this.isSidebarClosed = !this.isSidebarClosed;
     },
@@ -1384,35 +1426,76 @@ export default {
     //     this.displayedUsers = [];
     //   }
     // },
-    async fetchUsers() {
-      try {
-        let endpoint, response;
-        if (this.selectedUserType === 'patient') {
-          // Use the same endpoint as HRPatientList
-          response = await axios.get('/patient-list');
-          // Transform the data to match the expected structure
-          this.users = response.data.data.map(patient => ({
-            UserID: patient.PatientID,  // Map PatientID to UserID for consistency
-            PatientID: patient.PatientID,
-            LastName: patient.user.LastName,
-            FirstName: patient.user.FirstName,
-            AccountStatus: patient.user.AccountStatus || 'active',
-            // Include the user object for other data access
-            user: patient.user
-          }));
-        } else {
-          endpoint = '/dentists';
-          response = await axios.get(endpoint);
-          this.users = response.data;
+    async fetchUsers(page = 1) {
+  try {
+    let endpoint, response;
+    if (this.selectedUserType === 'patient') {
+      response = await axios.get('/patient-list', {
+        params: {
+          page: page,
+          search: this.isSearchActive ? this.searchQuery : '',
+          status: this.filter.status
         }
-        this.displayedUsers = [...this.users];
-        this.updateDisplayedUsers();
-      } catch (error) {
-        console.error(`Error fetching ${this.selectedUserType}:`, error);
-        this.users = [];
-        this.displayedUsers = [];
+      });
+      
+      // FIX: Use the actual UserID from patient.user, not PatientID
+      this.users = response.data.data.map(patient => ({
+        UserID: patient.user.UserID,  // Changed from patient.PatientID
+        PatientID: patient.PatientID,
+        LastName: patient.user.LastName,
+        FirstName: patient.user.FirstName,
+        AccountStatus: patient.user.AccountStatus || 'active',
+        user: patient.user
+      }));
+      
+      this.currentPage = response.data.current_page;
+      this.lastPage = response.data.last_page;
+      this.totalUsers = response.data.total;
+    } else {
+      endpoint = '/dentists';
+      response = await axios.get(endpoint, {
+        params: {
+          page: page,
+          search: this.isSearchActive ? this.searchQuery : '',
+          status: this.filter.status
+        }
+      });
+      
+      if (response.data.data) {
+        this.users = response.data.data;
+        this.currentPage = response.data.current_page || 1;
+        this.lastPage = response.data.last_page || 1;
+        this.totalUsers = response.data.total || response.data.data.length;
+      } else {
+        this.users = response.data;
+        this.totalUsers = this.users.length;
       }
-    },
+    }
+    
+    this.displayedUsers = [...this.users];
+    
+    if (this.sortConfig.key) {
+      this.applySorting();
+    }
+  } catch (error) {
+    console.error(`Error fetching ${this.selectedUserType}:`, error);
+    this.users = [];
+    this.displayedUsers = [];
+    this.totalUsers = 0;
+  }
+},
+changePage(page) {
+  if (page > 0 && page <= this.lastPage) {
+    this.fetchUsers(page);
+  }
+},
+onUserTypeChange() {
+  this.currentPage = 1;
+  this.searchQuery = '';
+  this.isSearchActive = false;
+  this.filter.status = '';
+  this.fetchUsers(1);
+},
     setMaxDate() {
       const today = new Date();
       this.maxDate = today.toISOString().split('T')[0];
@@ -1457,29 +1540,32 @@ export default {
       }
     },
     resetFilters() {
-      this.filter = {
-        status: ''
-      };
-      this.showFilterMenu = false;
-      this.updateDisplayedUsers();
-    },
+  this.filter = {
+    status: ''
+  };
+  this.showFilterMenu = false;
+  this.currentPage = 1;
+  this.fetchUsers(1);
+},
     resetSearch() {
-      this.searchQuery = '';
-      this.isSearchActive = false;
-      this.updateDisplayedUsers();
-    },
+  this.searchQuery = '';
+  this.isSearchActive = false;
+  this.currentPage = 1;
+  this.fetchUsers(1);
+},
     filterUsers() {
-      if (!this.searchQuery.trim()) {
-        this.isSearchActive = false;
-      } else {
-        this.isSearchActive = true;
-      }
-      this.updateDisplayedUsers();
-    },
+  if (!this.searchQuery.trim()) {
+    this.isSearchActive = false;
+  } else {
+    this.isSearchActive = true;
+  }
+  this.currentPage = 1; // Reset to first page when filtering
+  this.fetchUsers(1);
+},
     updateDisplayedUsers() {
-      this.displayedUsers = this.applyAllFilters(this.users);
-      this.applySorting();
-    },
+  // If you're doing server-side pagination, this method might just apply sorting
+  this.applySorting();
+},
     sortTable(key) {
       if (this.sortConfig.key === key) {
         this.sortConfig.direction = this.sortConfig.direction === 'asc' ? 'desc' : 'asc';
@@ -3519,4 +3605,90 @@ input[type="file"].is-invalid:focus {
     overflow-y: auto;
   }
 }
+
+/* Pagination Styles */
+.see-more-container {
+  padding: 20px;
+  border-top: 1px solid #f0f0f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #f9f9f9;
+}
+
+.pagination-info {
+  color: #666;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.pagination-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.pagination-btn {
+  background-color: #06693A;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: background-color 0.2s;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background-color: #055a32;
+}
+
+.pagination-btn:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.pagination-btn i {
+  font-size: 14px;
+}
+
+@media (max-width: 768px) {
+  /* ... existing mobile styles ... */
+  
+  .see-more-container {
+    padding: 15px;
+    flex-direction: column;
+    gap: 10px;
+    align-items: flex-start;
+  }
+  
+  .pagination-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+  
+  .pagination-btn {
+    flex: 1;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .see-more-container {
+    padding: 12px;
+  }
+  
+  .pagination-info {
+    font-size: 12px;
+  }
+  
+  .pagination-btn {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+}
+
 </style>
