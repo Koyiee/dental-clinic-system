@@ -807,7 +807,7 @@ class AppointmentController extends Controller
         
         // Validation rules (adding confirmSave)
         $validated = $request->validate([
-            'status' => 'required|in:Pending,Confirmed,Completed,Cancelled,Declined',
+            'status' => 'required|in:Pending,Confirmed,Completed,Cancelled,Declined,No Show', // UPDATED
             'declineReason' => 'required_if:status,Declined|string|max:500',
             'user_id' => 'nullable|exists:users,UserID',
             'patient_notes' => 'nullable|string',
@@ -816,8 +816,8 @@ class AppointmentController extends Controller
             'services' => 'sometimes|array|min:1',
             'services.*.ServiceAvailedID' => 'nullable|exists:services_availed,ServiceAvailedID',
             'services.*.ServiceID' => 'nullable|exists:services,ServiceID',
-            'services.*.Status' => 'required_with:services|in:Pending,Completed,Cancelled',
-            'confirmSave' => 'sometimes|boolean', // New parameter for confirmation
+            'services.*.Status' => 'required_with:services|in:Pending,Completed,Cancelled,No Show', // UPDATED
+            'confirmSave' => 'sometimes|boolean',
         ]);
         
         $appointment = Appointment::with(['servicesAvailed.service', 'patient.user', 'dentist.user'])->findOrFail($id);
@@ -890,6 +890,7 @@ class AppointmentController extends Controller
             $uniqueStatuses = array_unique($allServiceStatuses);
             $completedCount = count(array_filter($allServiceStatuses, fn($status) => $status === 'Completed'));
             $cancelledCount = count(array_filter($allServiceStatuses, fn($status) => $status === 'Cancelled'));
+            $noShowCount = count(array_filter($allServiceStatuses, fn($status) => $status === 'No Show'));
             $totalServices = count($allServiceStatuses);
             
             // New logic: Check if all services are not Pending and dentist is assigned
@@ -905,6 +906,8 @@ class AppointmentController extends Controller
                     $appointment->AppointmentStatus = 'Completed';
                 } elseif ($uniqueStatuses === ['Cancelled'] || $cancelledCount === $totalServices) {
                     $appointment->AppointmentStatus = 'Cancelled';
+                } elseif ($uniqueStatuses === ['No Show'] || $noShowCount === $totalServices) {
+                    $appointment->AppointmentStatus = 'No Show';
                 } elseif ($completedCount > 0) {
                     $appointment->AppointmentStatus = 'Completed';
                 } else {
@@ -1381,6 +1384,7 @@ class AppointmentController extends Controller
                 'completed' => 'Completed',
                 'cancelled' => 'Cancelled',
                 'declined' => 'Declined',
+                'no show' => 'No Show',
                 default => 'Pending',
             };
             
@@ -1512,6 +1516,7 @@ public function getOwnerCalendarAppointments(Request $request)
                 'completed' => 'Completed',
                 'cancelled' => 'Cancelled',
                 'declined' => 'Declined',
+                'no show' => 'No Show',
                 default => 'Pending',
             };
 
