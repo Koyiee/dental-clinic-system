@@ -151,7 +151,7 @@
               <i class='bx bx-x'></i>
             </button>
           </div>
-          <div class="buttons">
+          <!-- <div class="buttons">
             <button class="filter" @click="toggleFilterMenu">
               <i class='bx bx-filter'></i> Filter
             </button>
@@ -178,7 +178,7 @@
               </div>
               <button class="reset-btn" @click="resetFilters">Reset Filters</button>
             </div>
-          </div>
+          </div> -->
         </div>
 
         <div class="patient-container">
@@ -1057,34 +1057,17 @@ export default {
     },
     // Updated to match dentistpatientlist.vue behavior
     filterPatients() {
-      if (!this.searchQuery.trim()) {
-        this.filteredPatients = [...this.patients];
-        this.isSearchActive = false;
-        return;
-      }
-
-      const query = this.searchQuery.toLowerCase().trim();
-      this.filteredPatients = this.patients.filter(patient =>
-        `${patient.user.FirstName} ${patient.user.LastName}`.toLowerCase().includes(query) ||
-        (patient.user.ContactNumber || '').toLowerCase().includes(query) ||
-        (this.formatAppointmentDate(patient.nextAppointment) || '').toLowerCase().includes(query) ||
-        (this.formatAppointmentDate(patient.lastAppointment) || '').toLowerCase().includes(query)
-      );
-
-      this.isSearchActive = true;
-      this.totalPatients = this.filteredPatients.length;
-      this.currentPage = 1; // Reset to first page
-      this.lastPage = Math.ceil(this.filteredPatients.length / 15) || 1;
+      this.isSearchActive = !!this.searchQuery.trim();
+      this.currentPage = 1;
+      this.fetchPatients(1); // Always fetch from server with search query
     },
 
     // Updated to match dentistpatientlist.vue behavior
     resetSearch() {
       this.searchQuery = '';
-      this.filteredPatients = [...this.patients];
       this.isSearchActive = false;
-      this.totalPatients = this.patients.length;
       this.currentPage = 1;
-      this.lastPage = Math.ceil(this.patients.length / 15) || 1;
+      this.fetchPatients(1); // Fetch fresh data from server
     },
 
     toggleFilterMenu() {
@@ -1578,7 +1561,7 @@ export default {
           };
         });
         
-        this.filteredPatients = [...this.patients]; // Initialize filteredPatients
+        this.filteredPatients = [...this.patients];
         this.currentPage = response.data.current_page;
         this.lastPage = response.data.last_page;
         this.totalPatients = response.data.total;
@@ -1729,11 +1712,7 @@ export default {
 
     changePage(page) {
       if (page > 0 && page <= this.lastPage) {
-        this.currentPage = page;
-        // Update displayed patients based on page
-        const start = (page - 1) * 15;
-        const end = start + 15;
-        this.filteredPatients = this.filteredPatients.slice(start, end);
+        this.fetchPatients(page);
       }
     },
 
