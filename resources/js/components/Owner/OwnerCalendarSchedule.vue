@@ -240,6 +240,10 @@
               <span>Cancelled</span>
             </div>
             <div class="legend-item">
+              <span class="legend-color no-show"></span>
+              <span>No Show</span>
+            </div>
+            <div class="legend-item">
               <span class="legend-color blocked"></span>
               <span>Blocked</span>
             </div>
@@ -268,7 +272,7 @@
           <!-- Status Tabs -->
           <div class="status-tabs">
             <button 
-              v-for="status in ['All', 'Confirmed', 'Completed', 'Pending', 'Declined', 'Cancelled']" 
+              v-for="status in ['All', 'Confirmed', 'Completed', 'Pending', 'Declined', 'Cancelled', 'No Show']" 
               :key="status"
               :class="['status-tab', { active: selectedStatusTab === status }]"
               @click="selectedStatusTab = status"
@@ -486,6 +490,7 @@
                       <select v-model="service.Status" @change="markAsEdited" class="form-select">
                         <option value="Pending">Pending</option>
                         <option value="Completed">Completed</option>
+                        <option value="No Show">No Show</option>
                         <!-- <option value="Cancelled">Cancelled</option> -->
                       </select>
                     </div>
@@ -1326,6 +1331,7 @@ export default {
         case "pending": return "status-pending";
         case "declined": return "status-declined";
         case "cancelled": return "status-cancelled";
+        case "no show": return "status-no-show";
         default: return "status-pending";
       }
     },
@@ -1337,6 +1343,7 @@ export default {
         case "pending": return "#6c757d";
         case "declined": return "#ff6b6b";
         case "cancelled": return "#dc3545";
+        case "no show": return "#ff9800";
         default: return "#6c757d";
       }
     },
@@ -4718,6 +4725,94 @@ hr {
   margin: 0;
 }
 }
+
+/* Legend color for No Show */
+.legend-color.no-show { 
+  background-color: #ff9800; 
+}
+
+/* Status badge for No Show */
+.status-badge.status-no-show { 
+  background-color: #ff9800; 
+  color: white; 
+}
+
+/* Appointment status banner for No Show */
+.appointment-status-banner.status-no-show { 
+  background-color: #ff9800; 
+  color: white; 
+}
+
+/* Calendar event status for No Show */
+.status-no-show { 
+  background-color: #ff9800 !important; 
+}
+
+/* ============================================ */
+/* COMPLETE UPDATED LEGEND COLOR SECTION */
+/* Replace your existing legend-color styles with this: */
+/* ============================================ */
+
+.legend-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.legend-color.completed { background-color: #28a745; }
+.legend-color.confirmed { background-color: #007bff; }
+.legend-color.pending { background-color: #6c757d; }
+.legend-color.declined { background-color: #ff6b6b; }
+.legend-color.cancelled { background-color: #dc3545; }
+.legend-color.no-show { background-color: #ff9800; } /* NEW */
+.legend-color.blocked { background-color: #e8e8e8 !important; }
+
+/* ============================================ */
+/* COMPLETE UPDATED STATUS BADGE SECTION */
+/* Replace your existing status-badge styles with this: */
+/* ============================================ */
+
+.status-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.status-badge.status-completed { background-color: #28a745; color: white; }
+.status-badge.status-confirmed { background-color: #007bff; color: white; }
+.status-badge.status-pending { background-color: #6c757d; color: white; }
+.status-badge.status-declined { background-color: #ff6b6b; color: white; }
+.status-badge.status-cancelled { background-color: #dc3545; color: white; }
+.status-badge.status-no-show { background-color: #ff9800; color: white; } /* NEW */
+
+/* ============================================ */
+/* COMPLETE UPDATED APPOINTMENT STATUS BANNER SECTION */
+/* Replace your existing appointment-status-banner styles with this: */
+/* ============================================ */
+
+.appointment-status-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 15px;
+  border-radius: 8px;
+  margin-bottom: 15px;
+  font-weight: 500;
+}
+
+.appointment-status-banner.status-completed { background-color: #28a745; color: white; }
+.appointment-status-banner.status-confirmed { background-color: #007bff; color: white; }
+.appointment-status-banner.status-pending { background-color: #6c757d; color: white; }
+.appointment-status-banner.status-declined { background-color: #ff6b6b; color: white; }
+.appointment-status-banner.status-cancelled { background-color: #dc3545; color: white; }
+.appointment-status-banner.status-no-show { background-color: #ff9800; color: white; } /* NEW */
+
+.appointment-status-banner i {
+  font-size: 1.3rem;
+}
+
 </style>
 
 <style>
