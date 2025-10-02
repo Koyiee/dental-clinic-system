@@ -743,7 +743,7 @@
             </div>
           </div>
 
-          <!-- Payment Summary Section (for Paid tab) -->
+<!-- Payment Summary Section (for Paid tab) -->
 <div v-if="isFromPaidTab">
   <div class="section-header">
     <i class='bx bx-credit-card'></i>
@@ -751,45 +751,24 @@
   </div>
   <div class="form-section">
     <div v-if="selectedBilling.services && selectedBilling.services.length > 0">
-      <!-- Individual Service Payment Details -->
-      <div v-for="(service, index) in selectedBilling.services" :key="index" class="service-detail">
-        <div class="service-header">
-          <div class="service-name">{{ service.ServiceName }}</div>
-        </div>
-        <div class="service-controls">
-          <div class="form-group">
-            <label>Amount Paid</label>
-            <div class="input-with-icon">
-              <span class="currency-symbol">₱</span>
-              <input
-                :value="formatNumber(service.AmountPaid)"
-                type="number"
-                readonly
-                class="readonly-field"
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Total Amount Paid Section (only show if multiple services) -->
-      <div v-if="selectedBilling.services && selectedBilling.services.length > 1" class="payment-total-section">
+      
+      <!-- Single Total Amount Paid Section (no individual services) -->
+      <div class="payment-total-section">
         <div class="form-row">
           <div class="form-group">
             <label>Total Amount Paid</label>
             <div class="input-with-icon">
               <span class="currency-symbol">₱</span>
               <input 
-                :value="formatNumber(selectedBilling.services.reduce((sum, service) => sum + (Number(service.AmountPaid) || 0), 0))"
+                :value="formatNumber(selectedBilling.TotalPaid)"
                 readonly 
                 class="readonly-field total-amount-field"
               />
             </div>
           </div>
+          <div class="form-group"></div>
         </div>
       </div>
-
-      <br>
 
       <!-- Payment Method and Reference ID Section -->
       <div class="payment-method-section">
@@ -797,7 +776,7 @@
           <div class="form-group">
             <label>Payment Method</label>
             <input 
-              :value="selectedBilling.services[0].PaymentMethod || 'N/A'" 
+              :value="selectedBilling.PaymentMethod || 'N/A'" 
               readonly 
               class="readonly-field" 
             />
@@ -805,7 +784,7 @@
           <div class="form-group" v-if="shouldShowServiceReferenceInput(selectedBilling.services[0])">
             <label>Reference ID</label>
             <input 
-              :value="selectedBilling.services[0].ReferenceID || 'N/A'" 
+              :value="selectedBilling.ReferenceID || selectedBilling.services[0].ReferenceID || 'N/A'" 
               readonly 
               class="readonly-field" 
             />
@@ -814,13 +793,13 @@
         </div>
         
         <!-- Change Section (if applicable) -->
-        <div class="form-row" v-if="selectedBilling.services[0].PaymentMethod === 'Cash' && selectedBilling.services[0].Change > 0">
+        <div class="form-row" v-if="selectedBilling.PaymentMethod === 'Cash' && selectedBilling.Change > 0">
           <div class="form-group">
             <label>Change</label>
             <div class="input-with-icon">
               <span class="currency-symbol">₱</span>
               <input 
-                :value="formatNumber(selectedBilling.services[0].Change)" 
+                :value="formatNumber(selectedBilling.Change)" 
                 readonly 
                 class="readonly-field" 
               />
@@ -1739,28 +1718,39 @@ insuranceBillings() {
   },
 
   syncAmountPaidToAllServices() {
-    if (!this.selectedBilling.services || this.selectedBilling.services.length === 0) return;
+  if (!this.selectedBilling.services || this.selectedBilling.services.length === 0) return;
+  
+  const totalAmountPaid = Number(this.totalAmountPaidInput) || 0;
+  const totalCost = this.calculatedTotalAmount;
+  
+  if (totalCost === 0) return;
+  
+  // Distribute the payment proportionally based on each service's cost
+  let remainingAmount = totalAmountPaid;
+  const serviceCount = this.selectedBilling.services.length;
+  
+  this.selectedBilling.services.forEach((service, index) => {
+    const servicePrice = service.userInputPrice !== null && service.userInputPrice !== undefined 
+      ? Number(service.userInputPrice) 
+      : Number(service.Cost) || 0;
     
-    const totalAmountPaid = Number(this.totalAmountPaidInput) || 0;
-    const totalCost = this.calculatedTotalAmount;
-    
-    if (totalCost === 0) return;
-    
-    // Distribute the payment proportionally based on each service's cost
-    this.selectedBilling.services.forEach(service => {
-      const servicePrice = service.userInputPrice !== null && service.userInputPrice !== undefined 
-        ? Number(service.userInputPrice) 
-        : Number(service.Cost) || 0;
+    if (index === serviceCount - 1) {
+      // Last service gets the remaining amount to avoid rounding issues
+      service.AmountPaid = remainingAmount;
+    } else {
       const proportion = servicePrice / totalCost;
-      service.AmountPaid = totalAmountPaid * proportion;
-    });
-    
-    // Recalculate balances and status
-    this.selectedBilling.services.forEach(service => {
-      this.calculateServiceBalanceAndChange(service);
-    });
-    this.calculateTotalBalanceAndStatus();
-  },
+      const servicePayment = Math.round(totalAmountPaid * proportion * 100) / 100; // Round to 2 decimals
+      service.AmountPaid = servicePayment;
+      remainingAmount -= servicePayment;
+    }
+  });
+  
+  // Recalculate balances and status
+  this.selectedBilling.services.forEach(service => {
+    this.calculateServiceBalanceAndChange(service);
+  });
+  this.calculateTotalBalanceAndStatus();
+},
     async confirmLogout() {
   const result = await Swal.fire({
     title: 'Are you sure?',
@@ -2528,41 +2518,32 @@ openViewModal(billing) {
     Change: Number(service.Change) || 0,
     Balance: Number(service.Balance) || 0,
     PaymentStatus: service.AmountPaid >= (service.Cost - (service.Discount || 0)) ? 'Paid' : (service.AmountPaid > 0 ? 'Partially Paid' : 'Unpaid'),
-    PaymentMethod: service.PaymentMethod || 'N/A', // Ensure PaymentMethod is preserved
-    ReferenceID: service.ReferenceID || '', // Ensure ReferenceID is preserved
+    PaymentMethod: service.PaymentMethod || 'N/A',
+    ReferenceID: service.ReferenceID || '',
   }));
 
-  // Combine services into a single entry
-  const individualServices = updatedServices.map(service => ({
-  ServiceAvailedID: service.ServiceAvailedID,
-  ServiceName: service.ServiceName,
-  Cost: Number(service.Cost) || 0,
-  BasePrice: Number(service.Cost) || 0,
-  AmountPaid: Number(service.AmountPaid) || 0,
-  Discount: Number(service.Discount) || 0,
-  Change: Number(service.Change) || 0,
-  Balance: Number(service.Balance) || 0,
-  PaymentStatus: service.PaymentStatus,
-  PaymentMethod: service.PaymentMethod || 'N/A',
-  ReferenceID: service.ReferenceID || '',
-}));
+  // Filter only the services that were actually paid (have AmountPaid > 0)
+  const paidServices = updatedServices.filter(service => service.AmountPaid > 0);
 
-  // Populate selectedBilling with the combined service
+  // Use billing.AmountPaid (the actual amount paid in this transaction) instead of summing all services
+  const actualAmountPaid = Number(billing.AmountPaid) || 0;
+
+  // Populate selectedBilling
   this.selectedBilling = JSON.parse(JSON.stringify({
     ...billing,
-    TotalAmount: billing.IsStandalonePayment ? billing.TotalPaid : updatedServices.reduce((sum, s) => sum + Number(s.Cost), 0),
-    TotalPaid: updatedServices.reduce((sum, s) => sum + Number(s.AmountPaid), 0),
-    AmountPaid: billing.AmountPaid || 0, // Use AmountPaid directly from billing
+    TotalAmount: billing.IsStandalonePayment ? actualAmountPaid : updatedServices.reduce((sum, s) => sum + Number(s.Cost), 0),
+    TotalPaid: actualAmountPaid, // Use the actual transaction amount, not the sum of all services
+    AmountPaid: actualAmountPaid,
     Discount: updatedServices.reduce((sum, s) => sum + Number(s.Discount), 0),
     Balance: Number(billing.Balance) || 0,
     BillingStatus: billing.BillingStatus || 'Paid',
-    PaymentMethod: billing.PaymentMethod || (updatedServices[0]?.PaymentMethod || 'N/A'), // Top-level PaymentMethod
-    ReferenceID: billing.ReferenceID || (updatedServices[0]?.ReferenceID || ''),
+    PaymentMethod: billing.PaymentMethod || (paidServices[0]?.PaymentMethod || 'N/A'),
+    ReferenceID: billing.ReferenceID || (paidServices[0]?.ReferenceID || ''),
     ApprovalCode: billing.ApprovalCode || '',
     LOE: billing.LOE || '',
-    Change: updatedServices.reduce((sum, s) => sum + Number(s.Change), 0),
+    Change: paidServices.reduce((sum, s) => sum + Number(s.Change), 0),
     Remarks: billing.Remarks || '',
-    services: individualServices, // Use individual services
+    services: paidServices, // Only show services that were actually paid in this transaction
     originalServices: updatedServices.map(service => ({
       ServiceAvailedID: service.ServiceAvailedID,
       ServiceName: service.ServiceName,
