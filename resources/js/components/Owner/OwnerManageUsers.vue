@@ -171,24 +171,24 @@
       <!-- Users Container -->
       <div class="users-container">
         <div class="users-header">
-        <h3>List of {{ selectedUserType === 'patient' ? 'Patients' : 
+  <h3>{{ totalUsers }} {{ selectedUserType === 'patient' ? 'Patients' : 
                       selectedUserType === 'dentist' ? 'Dentists' : 
                       selectedUserType === 'hradmin' ? 'HR Admins' : 'Owners' }}</h3>
-        <div class="header-actions">
-          <div class="user-type-selector">
-            <select id="user-type" v-model="selectedUserType" @change="fetchUsers">
-              <option value="patient">Patient</option>
-              <option value="dentist">Dentist</option>
-              <option value="hradmin">HR Admin</option>
-              <option value="owner">Owner</option>
-            </select>
-          </div>
-          <button class="add-user-btn" @click="openModal">
-            <i class='bx bx-plus'></i> Add {{ selectedUserType === 'patient' ? 'Patient' : 
-                                            selectedUserType === 'dentist' ? 'Dentist' : 
-                                            selectedUserType === 'hradmin' ? 'HR Admin' : 'Owner' }}
-          </button>
-        </div>
+  <div class="header-actions">
+    <div class="user-type-selector">
+      <select id="user-type" v-model="selectedUserType" @change="onUserTypeChange">
+        <option value="patient">Patient</option>
+        <option value="dentist">Dentist</option>
+        <option value="hradmin">HR Admin</option>
+        <option value="owner">Owner</option>
+      </select>
+    </div>
+    <button class="add-user-btn" @click="openModal">
+      <i class='bx bx-plus'></i> Add {{ selectedUserType === 'patient' ? 'Patient' : 
+                                      selectedUserType === 'dentist' ? 'Dentist' : 
+                                      selectedUserType === 'hradmin' ? 'HR Admin' : 'Owner' }}
+    </button>
+  </div>
       </div>
         
         <!-- Desktop Table -->
@@ -299,6 +299,27 @@
             No Matching Users Found
           </div>
         </div>
+        <div class="see-more-container">
+  <div class="pagination-info">
+    Page {{ currentPage }} of {{ lastPage }}
+  </div>
+  <div class="pagination-actions">
+    <button 
+      class="pagination-btn prev" 
+      @click="changePage(currentPage - 1)" 
+      :disabled="currentPage === 1"
+    >
+      <i class='bx bx-chevron-left'></i> Previous
+    </button>
+    <button 
+      class="pagination-btn next" 
+      @click="changePage(currentPage + 1)" 
+      :disabled="currentPage === lastPage"
+    >
+      Next <i class='bx bx-chevron-right'></i>
+    </button>
+  </div>
+</div>
       </div>
       
       <!-- Modal for Adding Users -->
@@ -829,22 +850,28 @@ export default {
       return `${this.firstName} ${this.lastName}`;
     },
     filteredUsers() {
-      if (!this.searchQuery) {
-        return [...this.users].sort((a, b) => a.LastName.localeCompare(b.LastName));
-      }
-      
-      const query = this.searchQuery.toLowerCase();
-      const filtered = this.users.filter(user => 
-        `${user.LastName} ${user.FirstName}`.toLowerCase().includes(query) ||
-        user.UserID.toString().includes(query) ||
-        user.AccountStatus.toLowerCase().includes(query)
-      );
-      
-      return filtered.sort((a, b) => a.LastName.localeCompare(b.LastName));
-    },
+    // If server-side pagination is implemented, just return users
+    // Otherwise, filter locally
+    if (!this.searchQuery) {
+      return [...this.users].sort((a, b) => a.LastName.localeCompare(b.LastName));
+    }
+    
+    const query = this.searchQuery.toLowerCase();
+    const filtered = this.users.filter(user => 
+      `${user.LastName} ${user.FirstName}`.toLowerCase().includes(query) ||
+      user.UserID.toString().includes(query) ||
+      user.AccountStatus.toLowerCase().includes(query)
+    );
+    
+    return filtered.sort((a, b) => a.LastName.localeCompare(b.LastName));
+  },
   },
   data() {
     return {
+      currentPage: 1,
+      lastPage: 1,
+      perPage: 15,
+      totalUsers: 0,
       isSidebarClosed: true,
       isModalVisible: false,
       selectedUserType: 'patient',
@@ -1421,38 +1448,71 @@ export default {
         this.isSubmitting = false;
       }
     },
-    async fetchUsers() {
+    async fetchUsers(page = 1) {
   try {
-    let endpoint = '';
-    let response;
-    
-    switch(this.selectedUserType) {
-      case 'patient': 
-        // Use the same endpoint as HRPatientList
-        response = await axios.get('/patient-list');
-        // Transform the data to match the expected structure
-        this.users = response.data.data.map(patient => ({
-          UserID: patient.PatientID,  // Map PatientID to UserID for consistency
-          PatientID: patient.PatientID,
-          LastName: patient.user.LastName,
-          FirstName: patient.user.FirstName,
-          AccountStatus: patient.user.AccountStatus || 'active',
-          // Include the user object for other data access
-          user: patient.user
-        }));
-        return;
-      case 'dentist': endpoint = '/dentists'; break;
-      case 'hradmin': endpoint = '/hradmins'; break;
-      case 'owner': endpoint = '/owners'; break;
+    let endpoint, response;
+    if (this.selectedUserType === 'patient') {
+      response = await axios.get('/patient-list', {
+        params: {
+          page: page,
+          search: this.searchQuery || '',
+          // Add any other filters you need
+        }
+      });
+      
+      this.users = response.data.data.map(patient => ({
+        UserID: patient.user.UserID,
+        PatientID: patient.PatientID,
+        LastName: patient.user.LastName,
+        FirstName: patient.user.FirstName,
+        AccountStatus: patient.user.AccountStatus || 'active',
+        user: patient.user
+      }));
+      
+      this.currentPage = response.data.current_page;
+      this.lastPage = response.data.last_page;
+      this.totalUsers = response.data.total;
+    } else {
+      switch(this.selectedUserType) {
+        case 'dentist': endpoint = '/dentists'; break;
+        case 'hradmin': endpoint = '/hradmins'; break;
+        case 'owner': endpoint = '/owners'; break;
+      }
+      
+      response = await axios.get(endpoint, {
+        params: {
+          page: page,
+          search: this.searchQuery || '',
+        }
+      });
+      
+      if (response.data.data) {
+        this.users = response.data.data;
+        this.currentPage = response.data.current_page || 1;
+        this.lastPage = response.data.last_page || 1;
+        this.totalUsers = response.data.total || response.data.data.length;
+      } else {
+        this.users = response.data;
+        this.totalUsers = this.users.length;
+      }
     }
-    
-    response = await axios.get(endpoint);
-    console.log(`Fetched ${this.selectedUserType} data:`, response.data);
-    this.users = response.data;
   } catch (error) {
     console.error(`Error fetching ${this.selectedUserType}:`, error);
     this.users = [];
+    this.totalUsers = 0;
   }
+},
+
+changePage(page) {
+  if (page > 0 && page <= this.lastPage) {
+    this.fetchUsers(page);
+  }
+},
+
+onUserTypeChange() {
+  this.currentPage = 1;
+  this.searchQuery = '';
+  this.fetchUsers(1);
 },
     setMaxDate() {
       const today = new Date();
@@ -3392,4 +3452,88 @@ input[type="file"].is-invalid:focus {
     overflow-y: auto;
   }
 }
+
+.see-more-container {
+  padding: 20px;
+  border-top: 1px solid #f0f0f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #f9f9f9;
+}
+
+.pagination-info {
+  color: #666;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.pagination-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.pagination-btn {
+  background-color: #06693A;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: background-color 0.2s;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background-color: #055a32;
+}
+
+.pagination-btn:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.pagination-btn i {
+  font-size: 14px;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .see-more-container {
+    padding: 15px;
+    flex-direction: column;
+    gap: 10px;
+    align-items: flex-start;
+  }
+  
+  .pagination-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+  
+  .pagination-btn {
+    flex: 1;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .see-more-container {
+    padding: 12px;
+  }
+  
+  .pagination-info {
+    font-size: 12px;
+  }
+  
+  .pagination-btn {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+}
+
 </style>
