@@ -23,6 +23,7 @@ class Appointment extends Model
         'Completed' => 'Completed',
         'Cancelled' => 'Cancelled',
         'Declined' => 'Declined',
+        'No Show' => 'No Show',
     ];
 
     // Define fillable fields to allow mass assignment
