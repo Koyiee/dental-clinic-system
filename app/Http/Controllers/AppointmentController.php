@@ -338,6 +338,19 @@ class AppointmentController extends Controller
 
             // Check if the date is blocked
             $appointmentDate = $request->input('AppointmentDate');
+
+            $user = auth()->user();
+            $isPatient = $user->patient !== null;
+            if ($isPatient) {
+                $minDate = Carbon::now()->addDays(2);
+                if (Carbon::parse($appointmentDate)->lt($minDate)) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'You can only book appointments 2 days in advance.',
+                    ], 400);
+                }
+            }
+
             if ($this->isDateBlocked($appointmentDate, $DentistID)) {
                 return response()->json([
                     'success' => false,
@@ -655,6 +668,19 @@ class AppointmentController extends Controller
             ]);
 
             $date = $request->input('date');
+
+            $user = auth()->user();
+            $isPatient = $user->patient !== null;
+            if ($isPatient) {
+                $minDate = Carbon::now()->addDays(2);
+                if (Carbon::parse($date)->lt($minDate)) {
+                    return response()->json([
+                        'success' => true,
+                        'hasAppointment' => true,
+                        'message' => 'You can only book appointments 2 days in advance.',
+                    ]);
+                }
+            }
 
             // Check if the date is blocked (clinic-wide or for any specific dentist)
             if ($this->isDateBlocked($date)) {
@@ -1885,6 +1911,16 @@ public function getOwnerCalendarAppointments(Request $request)
             ]);
             
             $date = $request->input('date');
+
+            $user = auth()->user();
+            $isPatient = $user->patient !== null;
+            if ($isPatient) {
+                $minDate = Carbon::now()->addDays(2);
+                if (Carbon::parse($date)->lt($minDate)) {
+                    return response()->json(['available_times' => [], 'message' => 'You can only select dates 2 days in advance.']);
+                }
+            }
+
             $startTime = Carbon::createFromTime(9, 0); // 9:00 AM
             $endTime = Carbon::createFromTime(17, 0);  // 5:00 PM
             $interval = 60; // 1-hour increments (in minutes)
@@ -2010,6 +2046,16 @@ public function getOwnerCalendarAppointments(Request $request)
             
             $dentistId = $request->input('dentist_id');
             $date = $request->input('date');
+
+            $user = auth()->user();
+            $isPatient = $user->patient !== null;
+            if ($isPatient) {
+                $minDate = Carbon::now()->addDays(2);
+                if (Carbon::parse($date)->lt($minDate)) {
+                    return response()->json(['is_available' => false, 'message' => 'You can only select dates 2 days in advance.']);
+                }
+            }
+
             $time = $request->input('time');
             $serviceCount = (int) $request->input('service_count');
             $durationHours = $serviceCount;
@@ -2159,6 +2205,16 @@ public function getOwnerCalendarAppointments(Request $request)
             ]);
             
             $date = $request->input('date');
+
+            $user = auth()->user();
+            $isPatient = $user->patient !== null;
+            if ($isPatient) {
+                $minDate = Carbon::now()->addDays(2);
+                if (Carbon::parse($date)->lt($minDate)) {
+                    return response()->json(['time_slots' => [], 'message' => 'You can only select dates 2 days in advance.']);
+                }
+            }
+
             $times = $request->input('times');
             
             // Exclude Declined and Cancelled appointments
@@ -2640,6 +2696,18 @@ public function getOwnerCalendarAppointments(Request $request)
         'PatientNote' => 'nullable|string',
         'AppointmentStatus' => 'required|string',
     ]);
+
+    $appointmentDate = $validated['AppointmentDate'];
+
+    // Manual check for patient booking restriction
+    $user = auth()->user();
+    $isPatient = $user->patient !== null;
+    if ($isPatient) {
+        $minDate = Carbon::now()->addDays(2);
+        if (Carbon::parse($appointmentDate)->lt($minDate)) {
+            return response()->json(['success' => false, 'message' => 'You can only book appointments 2 days in advance.'], 400);
+        }
+    }
     
     // For same-day bookings, ensure the selected time is in the future
     $isToday = Carbon::parse($validated['AppointmentDate'])->isToday();
